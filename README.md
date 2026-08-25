@@ -1,4 +1,4 @@
-#  College Personal Assistant
+# College Personal Assistant
 
 A web-based personal assistant for college students to manage classes, assignments, study sessions, and CGPA.
 
@@ -7,20 +7,28 @@ A web-based personal assistant for college students to manage classes, assignmen
 ```
 college-personal-assistant/
 ├── frontend/
-│   ├── index.html   # Main application UI
-│   ├── styles.css   # Styling and theming
-│   └── app.js       # Application logic
+│   ├── index.html        # Main application UI
+│   ├── styles.css        # Styling, theming, responsive layout
+│   └── js/
+│       ├── theme.js      # Theme toggle, localStorage persistence, prefers-color-scheme
+│       ├── nav.js        # Sidebar navigation, mobile hamburger menu
+│       ├── assignments.js # Add/complete/delete tasks, localStorage, dashboard sync
+│       ├── cgpa.js       # Dynamic multi-subject SGPA calculator, localStorage
+│       └── timer.js      # Pomodoro timer with SVG ring, focus/break phases
 └── README.md
 ```
 
 ## Features
 
-- **Dashboard** — Overview of upcoming classes and deadlines
+- **Dashboard** — Live overview of upcoming classes and pending deadlines
 - **Timetable** — Weekly class schedule manager
-- **Assignments** — Task tracker with due dates
-- **Study Planner** — Pomodoro-based focus timer
-- **CGPA Calculator** — SGPA/CGPA computation tool
+- **Assignments** — Full task CRUD with due-date badges and completion toggle; persisted to `localStorage`
+- **Study Planner** — Pomodoro timer (25 min focus / 5 min break) with animated SVG ring
+- **CGPA Calculator** — Dynamic multi-subject SGPA calculator; rows persisted to `localStorage`
 
-## Getting Started
+## Tech
 
-
+- Vanilla HTML, CSS, JavaScript — no build step, no dependencies
+- Phosphor Icons via CDN
+- Google Fonts (Inter)
+- `localStorage` for all data persistence
