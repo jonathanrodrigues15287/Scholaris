@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>College Personal Assistant</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Include Phosphor Icons for a more modern look -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body data-theme="dark">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <i class="ph-fill ph-graduation-cap"></i>
+      <span>UniAssist</span>
+    </div>
+    
+    <ul class="nav-links">
+      <li class="nav-item">
+        <a class="nav-link active" data-target="dashboard">
+          <i class="ph-fill ph-house"></i> Dashboard
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-target="timetable">
+          <i class="ph ph-calendar-blank"></i> Timetable
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-target="assignments">
+          <i class="ph-fill ph-list-checks"></i> Assignments
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-target="study-planner">
+          <i class="ph-fill ph-book-open"></i> Study Planner
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-target="cgpa">
+          <i class="ph-fill ph-calculator"></i> CGPA Calc
+        </a>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="main-content">
+    
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="search-container">
+        <i class="ph ph-magnifying-glass" style="color: var(--text-secondary)"></i>
+        <input type="text" placeholder="Search resources, notices...">
+      </div>
+      <button class="theme-toggle" id="theme-btn" title="Toggle Theme">
+        <i class="ph ph-sun"></i>
+      </button>
+    </header>
+
+    <!-- Content Sections -->
+    <div class="content-wrapper">
+      
+      <!-- Dashboard Section -->
+      <section id="dashboard" class="section active">
+        <div class="section-header">
+          <h1 class="section-title">Welcome back, Student</h1>
+          <p class="section-subtitle">Here's your college overview for today.</p>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Next Class -->
+          <div class="card">
+            <h2 class="card-title"><i class="ph-fill ph-clock"></i> Up Next</h2>
+            <ul class="mock-list">
+              <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+                <i class="ph ph-calendar-slash"></i> No upcoming classes
+              </li>
+            </ul>
+          </div>
+
+          <!-- Pending Assignments -->
+          <div class="card">
+            <h2 class="card-title"><i class="ph-fill ph-warning"></i> Deadlines</h2>
+            <ul class="mock-list">
+              <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+                <i class="ph ph-check-circle"></i> No pending deadlines
+              </li>
+            </ul>
+          </div>
+
+
+        </div>
+      </section>
+
+      <!-- Timetable Section -->
+      <section id="timetable" class="section">
+        <div class="section-header">
+          <h1 class="section-title">Timetable & Reminders</h1>
+          <p class="section-subtitle">Manage your weekly class schedule.</p>
+        </div>
+        <div class="card">
+          <p style="color: var(--text-secondary)">[Calendar View Mockup - Weekly Grid goes here]</p>
+          <ul class="mock-list" style="margin-top: 16px;">
+            <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+              <i class="ph ph-calendar-blank"></i> No classes scheduled
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Assignments Section -->
+      <section id="assignments" class="section">
+        <div class="section-header">
+          <h1 class="section-title">Assignments & Deadlines</h1>
+        </div>
+        <div class="card">
+          <div class="form-group">
+            <input type="text" class="form-control" placeholder="Add new assignment...">
+            <button class="btn" style="margin-top: 10px;">Add Task</button>
+          </div>
+          <ul class="mock-list" id="assignments-list">
+            <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+              <i class="ph ph-list-checks"></i> No assignments yet
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Study Planner Section -->
+      <section id="study-planner" class="section">
+        <div class="section-header">
+          <h1 class="section-title">Study Planner</h1>
+        </div>
+        <div class="card">
+          <p>Plan your study sessions using Pomodoro timer.</p>
+          <div style="font-size: 3rem; font-weight: bold; text-align: center; margin: 24px 0; color: var(--accent-color);">
+            25:00
+          </div>
+          <div style="text-align: center;">
+            <button class="btn">Start Focus</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CGPA Section -->
+      <section id="cgpa" class="section">
+        <div class="section-header">
+          <h1 class="section-title">CGPA / SGPA Calculator</h1>
+        </div>
+        <div class="card">
+          <div class="form-group">
+            <label>Subject 1 Credits</label>
+            <input type="number" class="form-control" placeholder="e.g. 4">
+          </div>
+          <div class="form-group">
+            <label>Subject 1 Grade (Points)</label>
+            <input type="number" class="form-control" placeholder="e.g. 9">
+          </div>
+          <button class="btn">Calculate SGPA</button>
+          <div style="margin-top: 16px; font-weight: bold;">
+            Result: <span style="color: var(--accent-color);">--</span>
+          </div>
+        </div>
+      </section>
+
+
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
