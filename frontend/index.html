@@ -3,12 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>College Personal Assistant</title>
+  <title>UniAssist — College Personal Assistant</title>
+  <meta name="description" content="UniAssist is your all-in-one college personal assistant for managing timetables, assignments, study sessions, and CGPA.">
+  <!-- Emoji favicon — no external file needed -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
   <link rel="stylesheet" href="styles.css">
-  <!-- Include Phosphor Icons for a more modern look -->
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
-<body data-theme="dark">
+<!-- No data-theme here — theme.js sets it from localStorage / prefers-color-scheme -->
+<body>
+
+  <!-- Mobile sidebar overlay -->
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
 
   <!-- Sidebar -->
   <aside class="sidebar">
@@ -35,7 +41,7 @@
       </li>
       <li class="nav-item">
         <a class="nav-link" data-target="study-planner">
-          <i class="ph-fill ph-book-open"></i> Study Planner
+          <i class="ph-fill ph-timer"></i> Study Planner
         </a>
       </li>
       <li class="nav-item">
@@ -51,19 +57,24 @@
     
     <!-- Topbar -->
     <header class="topbar">
+      <!-- Hamburger — only visible on mobile -->
+      <button class="hamburger-btn" id="hamburger-btn" title="Toggle Sidebar" aria-label="Toggle sidebar">
+        <i class="ph ph-list"></i>
+      </button>
       <div class="search-container">
         <i class="ph ph-magnifying-glass" style="color: var(--text-secondary)"></i>
-        <input type="text" placeholder="Search resources, notices...">
+        <input type="text" placeholder="Search resources, notices..." aria-label="Search">
       </div>
-      <button class="theme-toggle" id="theme-btn" title="Toggle Theme">
+      <button class="theme-toggle" id="theme-btn" title="Toggle Theme" aria-label="Toggle theme">
+        <!-- Icon set by theme.js at runtime -->
         <i class="ph ph-sun"></i>
       </button>
     </header>
 
     <!-- Content Sections -->
     <div class="content-wrapper">
-      
-      <!-- Dashboard Section -->
+
+      <!-- ── Dashboard ── -->
       <section id="dashboard" class="section active">
         <div class="section-header">
           <h1 class="section-title">Welcome back, Student</h1>
@@ -71,105 +82,145 @@
         </div>
 
         <div class="dashboard-grid">
-          <!-- Next Class -->
+          <!-- Up Next -->
           <div class="card">
             <h2 class="card-title"><i class="ph-fill ph-clock"></i> Up Next</h2>
             <ul class="mock-list">
-              <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+              <li class="mock-list-item empty-state">
                 <i class="ph ph-calendar-slash"></i> No upcoming classes
               </li>
             </ul>
           </div>
 
-          <!-- Pending Assignments -->
+          <!-- Deadlines (live-synced from assignments.js) -->
           <div class="card">
             <h2 class="card-title"><i class="ph-fill ph-warning"></i> Deadlines</h2>
-            <ul class="mock-list">
-              <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+            <ul class="mock-list" id="dashboard-deadlines">
+              <li class="mock-list-item empty-state">
                 <i class="ph ph-check-circle"></i> No pending deadlines
               </li>
             </ul>
           </div>
-
-
         </div>
       </section>
 
-      <!-- Timetable Section -->
+      <!-- ── Timetable ── -->
       <section id="timetable" class="section">
         <div class="section-header">
-          <h1 class="section-title">Timetable & Reminders</h1>
+          <h1 class="section-title">Timetable &amp; Reminders</h1>
           <p class="section-subtitle">Manage your weekly class schedule.</p>
         </div>
         <div class="card">
-          <p style="color: var(--text-secondary)">[Calendar View Mockup - Weekly Grid goes here]</p>
-          <ul class="mock-list" style="margin-top: 16px;">
-            <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
-              <i class="ph ph-calendar-blank"></i> No classes scheduled
+          <ul class="mock-list">
+            <li class="mock-list-item empty-state">
+              <i class="ph ph-calendar-blank"></i> No classes scheduled yet
             </li>
           </ul>
         </div>
       </section>
 
-      <!-- Assignments Section -->
+      <!-- ── Assignments ── -->
       <section id="assignments" class="section">
         <div class="section-header">
-          <h1 class="section-title">Assignments & Deadlines</h1>
+          <h1 class="section-title">Assignments &amp; Deadlines</h1>
+          <p class="section-subtitle">Track tasks and never miss a deadline.</p>
         </div>
         <div class="card">
-          <div class="form-group">
-            <input type="text" class="form-control" placeholder="Add new assignment...">
-            <button class="btn" style="margin-top: 10px;">Add Task</button>
+          <div class="assignment-inputs">
+            <input type="text" id="assignment-title" class="form-control" placeholder="Assignment title..." aria-label="Assignment title">
+            <input type="date" id="assignment-date" class="form-control" aria-label="Due date">
+            <button class="btn" id="add-assignment-btn">
+              <i class="ph ph-plus"></i> Add Task
+            </button>
           </div>
           <ul class="mock-list" id="assignments-list">
-            <li class="mock-list-item" style="color: var(--text-secondary); justify-content: center;">
+            <li class="mock-list-item empty-state">
               <i class="ph ph-list-checks"></i> No assignments yet
             </li>
           </ul>
         </div>
       </section>
 
-      <!-- Study Planner Section -->
+      <!-- ── Study Planner (Pomodoro) ── -->
       <section id="study-planner" class="section">
         <div class="section-header">
           <h1 class="section-title">Study Planner</h1>
+          <p class="section-subtitle">Stay focused with the Pomodoro technique.</p>
         </div>
-        <div class="card">
-          <p>Plan your study sessions using Pomodoro timer.</p>
-          <div style="font-size: 3rem; font-weight: bold; text-align: center; margin: 24px 0; color: var(--accent-color);">
-            25:00
+        <div class="card timer-card">
+          <p id="timer-mode" class="timer-mode-label">🎯 Focus Session</p>
+
+          <!-- SVG ring timer -->
+          <div class="timer-ring-wrapper">
+            <svg class="timer-svg" viewBox="0 0 120 120" aria-hidden="true">
+              <!-- Background track -->
+              <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border-color)" stroke-width="8"/>
+              <!-- Progress ring — animated by timer.js -->
+              <circle id="timer-ring" cx="60" cy="60" r="54" fill="none"
+                stroke="var(--accent-color)" stroke-width="8"
+                stroke-linecap="round"
+                stroke-dasharray="339.29"
+                stroke-dashoffset="0"
+                transform="rotate(-90 60 60)"
+                style="transition: stroke-dashoffset 1s linear, stroke 0.4s ease;"/>
+            </svg>
+            <div id="timer-display" class="timer-display" aria-live="polite">25:00</div>
           </div>
-          <div style="text-align: center;">
-            <button class="btn">Start Focus</button>
+
+          <div class="timer-controls">
+            <button class="btn" id="timer-start">
+              <i class="ph ph-play"></i> Start Focus
+            </button>
+            <button class="btn btn-secondary" id="timer-reset">
+              <i class="ph ph-arrow-counter-clockwise"></i> Reset
+            </button>
           </div>
         </div>
       </section>
 
-      <!-- CGPA Section -->
+      <!-- ── CGPA Calculator ── -->
       <section id="cgpa" class="section">
         <div class="section-header">
           <h1 class="section-title">CGPA / SGPA Calculator</h1>
+          <p class="section-subtitle">Add subjects, enter credits and grade points to compute your SGPA.</p>
         </div>
         <div class="card">
-          <div class="form-group">
-            <label>Subject 1 Credits</label>
-            <input type="number" class="form-control" placeholder="e.g. 4">
+          <!-- Column headers -->
+          <div class="cgpa-header-row">
+            <span class="cgpa-col-label">Subject</span>
+            <span class="cgpa-col-label">Credits</span>
+            <span class="cgpa-col-label">Grade Pts</span>
+            <span></span>
           </div>
-          <div class="form-group">
-            <label>Subject 1 Grade (Points)</label>
-            <input type="number" class="form-control" placeholder="e.g. 9">
+
+          <!-- Dynamic rows injected by cgpa.js -->
+          <div id="cgpa-rows"></div>
+
+          <!-- Actions -->
+          <div class="cgpa-actions">
+            <button class="btn btn-secondary" id="add-subject-btn">
+              <i class="ph ph-plus"></i> Add Subject
+            </button>
+            <button class="btn" id="calc-cgpa-btn">
+              <i class="ph ph-calculator"></i> Calculate SGPA
+            </button>
           </div>
-          <button class="btn">Calculate SGPA</button>
-          <div style="margin-top: 16px; font-weight: bold;">
-            Result: <span style="color: var(--accent-color);">--</span>
+
+          <!-- Result display -->
+          <div class="cgpa-result-box">
+            <span id="cgpa-result">—</span>
           </div>
         </div>
       </section>
 
-
-    </div>
+    </div><!-- /content-wrapper -->
   </main>
 
-  <script src="app.js"></script>
+  <!-- Split JS modules — order matters: theme first, then nav, then features -->
+  <script src="js/theme.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/assignments.js"></script>
+  <script src="js/cgpa.js"></script>
+  <script src="js/timer.js"></script>
 </body>
 </html>
