@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UniAssist — College Personal Assistant</title>
-  <meta name="description" content="UniAssist is your all-in-one college personal assistant for managing timetables, assignments, study sessions, and CGPA.">
+  <title>Scholaris — College Personal Assistant</title>
+  <meta name="description" content="Scholaris is your all-in-one college personal assistant for managing timetables, assignments, study sessions, and CGPA.">
   <!-- Emoji favicon — no external file needed -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
   <link rel="stylesheet" href="styles.css">
@@ -20,7 +20,7 @@
   <aside class="sidebar">
     <div class="logo">
       <i class="ph-fill ph-graduation-cap"></i>
-      <span>UniAssist</span>
+      <span>Scholaris</span>
     </div>
     
     <ul class="nav-links">
@@ -108,15 +108,64 @@
       <section id="timetable" class="section">
         <div class="section-header">
           <h1 class="section-title">Timetable &amp; Reminders</h1>
-          <p class="section-subtitle">Manage your weekly class schedule.</p>
+          <p class="section-subtitle">Upload your timetable PDF or image to get started.</p>
         </div>
-        <div class="card">
-          <ul class="mock-list">
-            <li class="mock-list-item empty-state">
-              <i class="ph ph-calendar-blank"></i> No classes scheduled yet
-            </li>
-          </ul>
+
+        <!-- Upload Zone -->
+        <div class="tt-upload-zone" id="tt-upload-zone" role="button" tabindex="0"
+             aria-label="Upload timetable PDF or image">
+          <input type="file" id="tt-file-input" accept=".pdf,image/*" hidden aria-hidden="true">
+          <div class="tt-upload-icon">
+            <i class="ph ph-upload-simple"></i>
+          </div>
+          <p class="tt-upload-title">Drop your timetable here</p>
+          <p class="tt-upload-hint">Supports PDF, PNG, JPG, JPEG, WEBP — or <span class="tt-upload-link">click to browse</span></p>
         </div>
+
+        <!-- OCR Progress -->
+        <div class="tt-progress-wrap" id="tt-progress-wrap" hidden>
+          <div class="tt-progress-bar-track">
+            <div class="tt-progress-bar" id="tt-progress-bar"></div>
+          </div>
+          <p class="tt-progress-label" id="tt-progress-label">Initialising OCR engine…</p>
+        </div>
+
+        <!-- Parsed timetable output -->
+        <div id="tt-output" hidden>
+          <!-- Action bar above the grid -->
+          <div class="tt-action-bar">
+            <p class="tt-action-hint">
+              <i class="ph ph-info"></i>
+              Review the extracted schedule below. Click any cell to edit.
+            </p>
+            <div class="tt-action-btns">
+              <button class="btn btn-secondary" id="tt-reupload-btn">
+                <i class="ph ph-upload-simple"></i> Re-upload
+              </button>
+              <button class="btn" id="tt-save-btn">
+                <i class="ph ph-floppy-disk"></i> Save Schedule
+              </button>
+            </div>
+          </div>
+
+          <!-- Weekly grid — populated by timetable.js -->
+          <div class="tt-grid-wrapper">
+            <div class="tt-grid-scroll">
+              <table class="tt-grid" id="tt-grid">
+                <thead id="tt-grid-head"></thead>
+                <tbody id="tt-grid-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Add row controls -->
+          <div class="tt-add-row-wrap">
+            <button class="btn btn-secondary tt-add-slot-btn" id="tt-add-slot-btn">
+              <i class="ph ph-plus"></i> Add Time Slot
+            </button>
+          </div>
+        </div>
+
       </section>
 
       <!-- ── Assignments ── -->
@@ -141,14 +190,25 @@
         </div>
       </section>
 
-      <!-- ── Study Planner (Pomodoro) ── -->
+      <!-- ── Study Planner ── -->
       <section id="study-planner" class="section">
         <div class="section-header">
           <h1 class="section-title">Study Planner</h1>
-          <p class="section-subtitle">Stay focused with the Pomodoro technique.</p>
+          <p class="section-subtitle">Stay focused with custom timers.</p>
         </div>
         <div class="card timer-card">
           <p id="timer-mode" class="timer-mode-label">🎯 Focus Session</p>
+
+          <div class="timer-settings" style="margin-bottom: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+              Focus (min):
+              <input type="number" id="focus-input" value="25" min="1" max="120" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+              Break (min):
+              <input type="number" id="break-input" value="5" min="1" max="60" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
+            </label>
+          </div>
 
           <!-- SVG ring timer -->
           <div class="timer-ring-wrapper">
@@ -222,5 +282,7 @@
   <script src="js/assignments.js"></script>
   <script src="js/cgpa.js"></script>
   <script src="js/timer.js"></script>
+  <script src="js/timetable.js"></script>
 </body>
 </html>
+
