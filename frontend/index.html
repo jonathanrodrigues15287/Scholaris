@@ -194,46 +194,73 @@
       <section id="study-planner" class="section">
         <div class="section-header">
           <h1 class="section-title">Study Planner</h1>
-          <p class="section-subtitle">Stay focused with custom timers.</p>
+          <p class="section-subtitle">Stay focused with custom timers and track your sessions.</p>
         </div>
-        <div class="card timer-card">
-          <p id="timer-mode" class="timer-mode-label">🎯 Focus Session</p>
+        
+        <div class="dashboard-grid">
+          <!-- Timer Card -->
+          <div class="card timer-card">
+            <p id="timer-mode" class="timer-mode-label">🎯 Focus Session</p>
 
-          <div class="timer-settings" style="margin-bottom: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center;">
-            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
-              Focus (min):
-              <input type="number" id="focus-input" value="25" min="1" max="120" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
-            </label>
-            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
-              Break (min):
-              <input type="number" id="break-input" value="5" min="1" max="60" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
-            </label>
+            <div class="timer-settings" style="margin-bottom: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+                Focus (min):
+                <input type="number" id="focus-input" value="25" min="1" max="120" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+                Break (min):
+                <input type="number" id="break-input" value="5" min="1" max="60" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
+              </label>
+            </div>
+
+            <!-- SVG ring timer -->
+            <div class="timer-ring-wrapper">
+              <svg class="timer-svg" viewBox="0 0 120 120" aria-hidden="true">
+                <!-- Background track -->
+                <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border-color)" stroke-width="8"/>
+                <!-- Progress ring — animated by timer.js -->
+                <circle id="timer-ring" cx="60" cy="60" r="54" fill="none"
+                  stroke="var(--accent-color)" stroke-width="8"
+                  stroke-linecap="round"
+                  stroke-dasharray="339.29"
+                  stroke-dashoffset="0"
+                  transform="rotate(-90 60 60)"
+                  style="transition: stroke-dashoffset 1s linear, stroke 0.4s ease;"/>
+              </svg>
+              <div id="timer-display" class="timer-display" aria-live="polite">25:00</div>
+            </div>
+
+            <div class="timer-controls">
+              <button class="btn" id="timer-start">
+                <i class="ph ph-play"></i> Start Focus
+              </button>
+              <button class="btn btn-secondary" id="timer-reset">
+                <i class="ph ph-arrow-counter-clockwise"></i> Reset
+              </button>
+            </div>
           </div>
 
-          <!-- SVG ring timer -->
-          <div class="timer-ring-wrapper">
-            <svg class="timer-svg" viewBox="0 0 120 120" aria-hidden="true">
-              <!-- Background track -->
-              <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border-color)" stroke-width="8"/>
-              <!-- Progress ring — animated by timer.js -->
-              <circle id="timer-ring" cx="60" cy="60" r="54" fill="none"
-                stroke="var(--accent-color)" stroke-width="8"
-                stroke-linecap="round"
-                stroke-dasharray="339.29"
-                stroke-dashoffset="0"
-                transform="rotate(-90 60 60)"
-                style="transition: stroke-dashoffset 1s linear, stroke 0.4s ease;"/>
-            </svg>
-            <div id="timer-display" class="timer-display" aria-live="polite">25:00</div>
+          <!-- History Card -->
+          <div class="card history-card">
+            <h2 class="card-title"><i class="ph-fill ph-clock-counter-clockwise"></i> Session History</h2>
+            <ul class="mock-list" id="session-history-list">
+              <li class="mock-list-item empty-state">
+                <i class="ph ph-list-magnifying-glass"></i> No sessions recorded yet
+              </li>
+            </ul>
           </div>
+        </div>
 
-          <div class="timer-controls">
-            <button class="btn" id="timer-start">
-              <i class="ph ph-play"></i> Start Focus
-            </button>
-            <button class="btn btn-secondary" id="timer-reset">
-              <i class="ph ph-arrow-counter-clockwise"></i> Reset
-            </button>
+        <!-- Session Completion Modal -->
+        <div id="session-modal-overlay" class="modal-overlay hidden">
+          <div class="modal-content card">
+            <h2 class="card-title"><i class="ph-fill ph-party-horn"></i> Session Complete!</h2>
+            <p style="margin-bottom: 1rem; color: var(--text-secondary);">Great job! What did you work on during this focus session?</p>
+            <input type="text" id="session-task-input" class="form-control" placeholder="e.g. Studied Calculus Chapter 4..." aria-label="Session task">
+            <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+              <button class="btn btn-secondary" id="session-skip-btn">Skip</button>
+              <button class="btn" id="session-save-btn">Save Session</button>
+            </div>
           </div>
         </div>
       </section>
