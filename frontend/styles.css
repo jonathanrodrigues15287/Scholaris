@@ -1046,3 +1046,41 @@ body.sidebar-open .sidebar-overlay {
   .tt-td-slot     { min-width: 110px; }
 }
 
+/* ════════════════════════════════════════
+   Study Planner — History & Modal
+════════════════════════════════════════ */
+.history-card {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 400px;
+  transform: scale(1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-overlay.hidden .modal-content {
+  transform: scale(0.95);
+}
+
+
