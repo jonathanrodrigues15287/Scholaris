@@ -1,7 +1,7 @@
 // assignments.js — add, render, complete, delete, and persist assignments
 
 (function () {
-  const STORAGE_KEY = 'uniassist_assignments';
+  const STORAGE_KEY = 'scholaris_assignments';
   const list = document.getElementById('assignments-list');
   const titleInput = document.getElementById('assignment-title');
   const dateInput = document.getElementById('assignment-date');
