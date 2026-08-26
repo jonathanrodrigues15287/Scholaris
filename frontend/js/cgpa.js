@@ -1,7 +1,7 @@
 // cgpa.js — dynamic multi-subject SGPA calculator with localStorage persistence
 
 (function () {
-  const STORAGE_KEY = 'uniassist_cgpa_rows';
+  const STORAGE_KEY = 'scholaris_cgpa_rows';
   const rowsContainer = document.getElementById('cgpa-rows');
   const addRowBtn = document.getElementById('add-subject-btn');
   const calcBtn = document.getElementById('calc-cgpa-btn');
