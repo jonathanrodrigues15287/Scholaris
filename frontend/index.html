@@ -46,7 +46,7 @@
       </li>
       <li class="nav-item">
         <a class="nav-link" data-target="cgpa">
-          <i class="ph-fill ph-calculator"></i> CGPA Calc
+          <i class="ph-fill ph-calculator"></i> CGPA Calculator
         </a>
       </li>
     </ul>
@@ -269,33 +269,23 @@
       <section id="cgpa" class="section">
         <div class="section-header">
           <h1 class="section-title">CGPA / SGPA Calculator</h1>
-          <p class="section-subtitle">Add subjects, enter credits and grade points to compute your SGPA.</p>
+          <p class="section-subtitle">Add semesters and subjects to compute your SGPA and CGPA.</p>
         </div>
+        
+        <!-- Semesters Container -->
+        <div id="semesters-container"></div>
+        
+        <div style="margin-bottom: 2rem;">
+          <button class="btn btn-secondary" id="add-semester-btn">
+            <i class="ph ph-plus"></i> Add Semester
+          </button>
+        </div>
+
         <div class="card">
-          <!-- Column headers -->
-          <div class="cgpa-header-row">
-            <span class="cgpa-col-label">Subject</span>
-            <span class="cgpa-col-label">Credits</span>
-            <span class="cgpa-col-label">Grade Pts</span>
-            <span></span>
-          </div>
-
-          <!-- Dynamic rows injected by cgpa.js -->
-          <div id="cgpa-rows"></div>
-
-          <!-- Actions -->
-          <div class="cgpa-actions">
-            <button class="btn btn-secondary" id="add-subject-btn">
-              <i class="ph ph-plus"></i> Add Subject
-            </button>
-            <button class="btn" id="calc-cgpa-btn">
-              <i class="ph ph-calculator"></i> Calculate SGPA
-            </button>
-          </div>
-
+          <h2 class="card-title">Overall CGPA</h2>
           <!-- Result display -->
           <div class="cgpa-result-box">
-            <span id="cgpa-result">—</span>
+            <span id="overall-cgpa-result">—</span>
           </div>
         </div>
       </section>
