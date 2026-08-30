@@ -7,6 +7,15 @@
   const dateInput = document.getElementById('assignment-date');
   const addBtn = document.getElementById('add-assignment-btn');
 
+  let datePicker = null;
+  if (typeof flatpickr !== 'undefined' && dateInput) {
+    datePicker = flatpickr(dateInput, {
+      dateFormat: "d-m-Y",
+      allowInput: true,
+      placeholder: "Due date (optional)"
+    });
+  }
+
   function load() {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   }
@@ -16,9 +25,27 @@
     updateDashboard(tasks);
   }
 
+  function getDaysDiff(dueDate) {
+    if (!dueDate) return 0;
+    const parts = dueDate.split('-');
+    let y, m, d;
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        y = parts[0]; m = parts[1]; d = parts[2];
+      } else {
+        d = parts[0]; m = parts[1]; y = parts[2];
+      }
+      const due = new Date(`${y}-${m}-${d}T00:00:00`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return Math.round((due - today) / 86400000);
+    }
+    return 0;
+  }
+
   function getBadgeClass(dueDate) {
     if (!dueDate) return 'badge-blue';
-    const diff = Math.ceil((new Date(dueDate) - new Date()) / 86400000);
+    const diff = getDaysDiff(dueDate);
     if (diff < 0) return 'badge-red';
     if (diff === 0) return 'badge-red';
     if (diff <= 2) return 'badge-yellow';
@@ -27,7 +54,7 @@
 
   function getBadgeLabel(dueDate) {
     if (!dueDate) return 'No date';
-    const diff = Math.ceil((new Date(dueDate) - new Date()) / 86400000);
+    const diff = getDaysDiff(dueDate);
     if (diff < 0) return 'Overdue';
     if (diff === 0) return 'Due Today';
     if (diff === 1) return 'Tomorrow';
@@ -104,7 +131,11 @@
     tasks.push({ title, due: dateInput.value, done: false });
     save(tasks);
     titleInput.value = '';
-    dateInput.value = '';
+    if (datePicker) {
+      datePicker.clear();
+    } else {
+      dateInput.value = '';
+    }
     render();
     titleInput.focus();
   }
