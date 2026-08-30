@@ -44,6 +44,7 @@ body {
   background-attachment: fixed;
   color: var(--text-primary);
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
   transition: background 0.3s ease, color 0.3s ease;
@@ -51,13 +52,14 @@ body {
 
 /* ── Sidebar ── */
 .sidebar {
-  width: var(--sidebar-width);
+  width: 100%;
   background-color: var(--sidebar-bg);
-  height: 100vh;
+  min-height: 72px;
   display: flex;
-  flex-direction: column;
-  padding: 24px 16px;
-  border-right: 1px solid var(--border-color);
+  flex-direction: row;
+  align-items: center;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--border-color);
   transition: background-color 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 100;
   flex-shrink: 0;
@@ -67,7 +69,7 @@ body {
   font-size: 1.5rem;
   font-weight: 800;
   color: #94a3b8;
-  margin-bottom: 32px;
+  margin-right: 32px;
   padding: 0 12px;
   display: flex;
   align-items: center;
@@ -90,11 +92,16 @@ body {
 .nav-links {
   list-style: none;
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .nav-item {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .nav-link {
@@ -144,16 +151,16 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .topbar {
-  height: 72px;
+  height: 60px;
   padding: 0 32px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  background-color: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  background-color: transparent;
+  border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 5;
@@ -605,15 +612,39 @@ body.sidebar-open .sidebar-overlay {
 @media (max-width: 768px) {
   body {
     overflow: auto;
+    flex-direction: column;
   }
 
   /* Sidebar slides in from left on mobile */
   .sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 24px 16px;
+    border-bottom: none;
+    border-right: 1px solid var(--border-color);
     position: fixed;
     left: 0;
     top: 0;
     transform: translateX(-100%);
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .logo {
+    margin-bottom: 32px;
+    margin-right: 0;
+  }
+
+  .nav-links {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-items: stretch;
+  }
+
+  .nav-item {
+    margin-bottom: 8px;
   }
 
   body.sidebar-open .sidebar {
@@ -626,7 +657,11 @@ body.sidebar-open .sidebar-overlay {
   }
 
   .topbar {
+    height: 72px;
     padding: 0 16px;
+    justify-content: space-between;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
   }
 
   .search-container {
