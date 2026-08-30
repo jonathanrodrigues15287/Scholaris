@@ -291,16 +291,96 @@
     saveBtn.innerHTML = '<i class="ph ph-check"></i> Saved!';
     saveBtn.classList.add('btn-saved');
     setTimeout(() => { saveBtn.innerHTML = orig; saveBtn.classList.remove('btn-saved'); }, 2000);
+    updateDashboard();
   }
   function loadSaved() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const { schedule: s, activeDays: d } = JSON.parse(raw);
-      if (!Array.isArray(s) || !s.length) return;
-      schedule = s; activeDays = d || [...DAYS];
-      uploadZone.hidden = true; renderGrid(); output.hidden = false;
+      if (raw) {
+        const { schedule: s, activeDays: d } = JSON.parse(raw);
+        if (Array.isArray(s) && s.length) {
+          schedule = s; activeDays = d || [...DAYS];
+          uploadZone.hidden = true; renderGrid(); output.hidden = false;
+        }
+      }
     } catch (_) {}
+    updateDashboard();
+  }
+
+  function updateDashboard() {
+    const list = document.getElementById('dashboard-up-next');
+    if (!list) return;
+
+    if (!schedule || schedule.length === 0) {
+      list.innerHTML = `<li class="mock-list-item empty-state"><i class="ph ph-calendar-slash"></i> No timetable saved</li>`;
+      return;
+    }
+
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+
+    function parseTime(t) {
+      const match = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (!match) return 0;
+      let h = parseInt(match[1], 10);
+      let m = parseInt(match[2], 10);
+      if (match[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+      if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
+      return h * 60 + m;
+    }
+
+    let upcoming = [];
+    let lookaheadDays = 0;
+    
+    // Scan up to 7 days ahead
+    while (lookaheadDays < 7) {
+      const targetDate = new Date();
+      targetDate.setDate(now.getDate() + lookaheadDays);
+      const targetDayStr = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+      for (const row of schedule) {
+        if (!row.slots[targetDayStr]) continue;
+        const parts = row.time.split('-');
+        if (parts.length > 0) {
+          const startMins = parseTime(parts[0].trim());
+          let endMins = currentMins + 1;
+          if (parts.length > 1) {
+            endMins = parseTime(parts[1].trim());
+          } else {
+            endMins = startMins + 60;
+          }
+
+          if (lookaheadDays === 0) {
+            if (endMins > currentMins) {
+              upcoming.push({ time: row.time, subject: row.slots[targetDayStr], startMins, dayLabel: "Today" });
+            }
+          } else {
+            upcoming.push({ time: row.time, subject: row.slots[targetDayStr], startMins, dayLabel: lookaheadDays === 1 ? "Tomorrow" : targetDayStr });
+          }
+        }
+      }
+
+      if (upcoming.length > 0) {
+        break; // Stop looking ahead once we found classes for a day
+      }
+      lookaheadDays++;
+    }
+
+    upcoming.sort((a, b) => a.startMins - b.startMins);
+
+    if (upcoming.length === 0) {
+      list.innerHTML = `<li class="mock-list-item empty-state"><i class="ph ph-check-circle"></i> No upcoming classes</li>`;
+    } else {
+      list.innerHTML = upcoming.slice(0, 3).map(u => `
+        <li class="mock-list-item">
+          <div>
+            <strong>${u.subject}</strong> 
+            <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 6px;">(${u.dayLabel})</span>
+          </div>
+          <span class="badge badge-blue">${u.time}</span>
+        </li>
+      `).join('');
+    }
   }
 
   /* ===== 9. UTILITIES ===== */
