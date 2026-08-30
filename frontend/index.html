@@ -9,6 +9,8 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <!-- No data-theme here — theme.js sets it from localStorage / prefers-color-scheme -->
 <body>
@@ -177,7 +179,7 @@
         <div class="card">
           <div class="assignment-inputs">
             <input type="text" id="assignment-title" class="form-control" placeholder="Assignment title..." aria-label="Assignment title">
-            <input type="date" id="assignment-date" class="form-control" aria-label="Due date">
+            <input type="text" id="assignment-date" class="form-control" placeholder="Due date (optional)" aria-label="Due date">
             <button class="btn" id="add-assignment-btn">
               <i class="ph ph-plus"></i> Add Task
             </button>
