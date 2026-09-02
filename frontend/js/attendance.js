@@ -17,7 +17,10 @@
     datePicker = flatpickr(dateInput, {
       dateFormat: 'Y-m-d',
       allowInput: true,
-      placeholder: 'Select date...'
+      placeholder: 'Select date...',
+      onChange: function(selectedDates, dateStr, instance) {
+        updateCourseDropdown(dateStr);
+      }
     });
   }
 
@@ -29,6 +32,50 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     render();
     updateStats();
+  }
+
+  function updateCourseDropdown(dateStr) {
+    courseInput.innerHTML = '';
+    if (!dateStr) {
+      courseInput.innerHTML = '<option value="">Select date first...</option>';
+      return;
+    }
+
+    const date = new Date(dateStr);
+    const dayStr = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+    let schedule = [];
+    try {
+      const ttRaw = localStorage.getItem('scholaris_timetable_v1');
+      if (ttRaw) {
+        const parsed = JSON.parse(ttRaw);
+        if (parsed && parsed.schedule) schedule = parsed.schedule;
+      }
+    } catch (e) {}
+
+    const subjects = [];
+    let lastSubject = null;
+
+    for (const row of schedule) {
+      if (row.slots && row.slots[dayStr]) {
+        const subj = row.slots[dayStr].trim();
+        if (subj && subj !== lastSubject) {
+          subjects.push(subj);
+          lastSubject = subj;
+        } else if (subj === lastSubject) {
+          // contiguous same subject, ignore
+        }
+      }
+    }
+
+    if (subjects.length === 0) {
+      courseInput.innerHTML = '<option value="N/A">No subjects found for ' + dayStr + '</option>';
+    } else {
+      courseInput.innerHTML = subjects.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    }
+    
+    // Add a custom option just in case
+    courseInput.innerHTML += '<option value="Custom">Other (Custom)</option>';
   }
 
   function escapeHtml(str) {
@@ -133,16 +180,23 @@
   function addAttendance() {
     const date = dateInput.value.trim();
     const status = statusSelect.value;
-    const course = courseInput.value.trim();
+    let course = courseInput.value.trim();
 
     if (!date) {
-      alert('Please select a date');
+      if (window.showToast) window.showToast('Please select a date', 'error');
+      else alert('Please select a date');
       dateInput.focus();
       return;
     }
 
-    if (!course) {
-      alert('Please enter a course/subject name');
+    if (course === 'Custom') {
+      course = prompt("Enter custom course/subject name:");
+      if (!course) return; // user cancelled
+    }
+
+    if (!course || course === 'N/A' || course === '') {
+      if (window.showToast) window.showToast('Please enter or select a valid course/subject name', 'error');
+      else alert('Please enter a course/subject name');
       courseInput.focus();
       return;
     }
@@ -157,24 +211,23 @@
     }
 
     save(records);
-    dateInput.value = '';
-    courseInput.value = '';
+    
+    if (window.showToast) window.showToast('Attendance logged successfully!');
+    
+    // Keep date but reset status and trigger dropdown update
     statusSelect.value = 'present';
-    if (datePicker) {
-      datePicker.clear();
-    }
-    dateInput.focus();
+    // dateInput.value = ''; // keep date so they can log multiple for the same day
+    updateCourseDropdown(date);
+    courseInput.focus();
   }
 
   addBtn?.addEventListener('click', addAttendance);
+  dateInput?.addEventListener('change', e => {
+    updateCourseDropdown(e.target.value);
+  });
   dateInput?.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       courseInput.focus();
-    }
-  });
-  courseInput?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      addAttendance();
     }
   });
 
