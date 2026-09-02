@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scholaris — College Personal Assistant</title>
   <meta name="description" content="Scholaris is your all-in-one college personal assistant for managing timetables, assignments, study sessions, and CGPA.">
-  <!-- Emoji favicon — no external file needed -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -49,6 +48,11 @@
       <li class="nav-item">
         <a class="nav-link" data-target="cgpa">
           <i class="ph-fill ph-calculator"></i> CGPA Calculator
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" data-target="attendance">
+          <i class="ph-fill ph-calendar-check"></i> Attendance
         </a>
       </li>
     </ul>
@@ -178,11 +182,33 @@
         </div>
         <div class="card">
           <div class="assignment-inputs">
-            <input type="text" id="assignment-title" class="form-control" placeholder="Assignment title..." aria-label="Assignment title">
+            <input type="text" id="assignment-title" class="form-control" placeholder="Assignment title..." aria-label="Assignment title" required>
             <input type="text" id="assignment-date" class="form-control" placeholder="Due date (optional)" aria-label="Due date">
+            <select id="assignment-priority" class="form-control" aria-label="Priority" style="min-width: 120px;">
+              <option value="low">Low Priority</option>
+              <option value="medium" selected>Medium Priority</option>
+              <option value="high">High Priority</option>
+            </select>
             <button class="btn" id="add-assignment-btn">
               <i class="ph ph-plus"></i> Add Task
             </button>
+          </div>
+          <div class="assignment-filters mb-1" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="assignment-filter-status" class="form-control" style="width: auto; padding: 6px 30px 6px 12px;">
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+            <select id="assignment-filter-priority" class="form-control" style="width: auto; padding: 6px 30px 6px 12px;">
+              <option value="all">All Priorities</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+            <select id="assignment-sort" class="form-control" style="width: auto; padding: 6px 30px 6px 12px;">
+              <option value="date">Sort by Date</option>
+              <option value="priority">Sort by Priority</option>
+            </select>
           </div>
           <ul class="mock-list" id="assignments-list">
             <li class="mock-list-item empty-state">
@@ -204,14 +230,14 @@
           <div class="card timer-card">
             <p id="timer-mode" class="timer-mode-label">🎯 Focus Session</p>
 
-            <div class="timer-settings" style="margin-bottom: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center;">
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+            <div class="timer-settings">
+              <label class="timer-setting-label">
                 Focus (min):
-                <input type="number" id="focus-input" value="25" min="1" max="120" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
+                <input type="number" id="focus-input" value="25" min="1" max="120" class="form-control timer-setting-input">
               </label>
-              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text-secondary);">
+              <label class="timer-setting-label">
                 Break (min):
-                <input type="number" id="break-input" value="5" min="1" max="60" class="form-control" style="width: 70px; padding: 0.25rem 0.5rem;">
+                <input type="number" id="break-input" value="5" min="1" max="60" class="form-control timer-setting-input">
               </label>
             </div>
 
@@ -257,9 +283,9 @@
         <div id="session-modal-overlay" class="modal-overlay hidden">
           <div class="modal-content card">
             <h2 class="card-title"><i class="ph-fill ph-party-horn"></i> Session Complete!</h2>
-            <p style="margin-bottom: 1rem; color: var(--text-secondary);">Great job! What did you work on during this focus session?</p>
+            <p class="mb-1 text-secondary">Great job! What did you work on during this focus session?</p>
             <input type="text" id="session-task-input" class="form-control" placeholder="e.g. Studied Calculus Chapter 4..." aria-label="Session task">
-            <div style="margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: flex-end;">
+            <div class="flex-end mt-1-5">
               <button class="btn btn-secondary" id="session-skip-btn">Skip</button>
               <button class="btn" id="session-save-btn">Save Session</button>
             </div>
@@ -277,7 +303,7 @@
         <!-- Semesters Container -->
         <div id="semesters-container"></div>
         
-        <div style="margin-bottom: 2rem;">
+        <div class="mb-2">
           <button class="btn btn-secondary" id="add-semester-btn">
             <i class="ph ph-plus"></i> Add Semester
           </button>
@@ -292,16 +318,109 @@
         </div>
       </section>
 
+      <!-- ── Attendance Tracker ── -->
+      <section id="attendance" class="section">
+        <div class="section-header">
+          <h1 class="section-title">Attendance Tracker</h1>
+          <p class="section-subtitle">Log your daily lecture attendance and mark holidays/exam days.</p>
+        </div>
+
+        <div class="card">
+          <div class="attendance-grid">
+            <div>
+              <label class="form-label" for="att-date">Date</label>
+              <input type="text" id="att-date" class="form-control" placeholder="Select date..." aria-label="Attendance date">
+            </div>
+            <div>
+              <label class="form-label" for="att-status">Status</label>
+              <select id="att-status" class="form-control" aria-label="Attendance status">
+                <option value="present">Present</option>
+                <option value="absent">Absent</option>
+                <option value="holiday">Holiday</option>
+                <option value="exam">Exam Day</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="att-course">Course/Subject</label>
+              <select id="att-course" class="form-control" aria-label="Course name">
+                <option value="">Select date first...</option>
+              </select>
+            </div>
+            <div class="attendance-btn-wrap">
+              <button class="btn w-100" id="add-attendance-btn">
+                <i class="ph ph-plus"></i> Log Attendance
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="card-subtitle mb-1 text-secondary" style="font-size: 0.95rem;">Attendance History</h3>
+            <ul class="mock-list" id="attendance-list">
+              <li class="mock-list-item empty-state">
+                <i class="ph ph-calendar-slash"></i> No attendance records yet
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="dashboard-grid mt-1-5">
+          <div class="card">
+            <div class="text-center">
+              <p class="card-subtitle text-secondary">Present</p>
+              <p id="att-present-count" class="stat-value text-accent">0</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="text-center">
+              <p class="card-subtitle text-secondary">Absent</p>
+              <p id="att-absent-count" class="stat-value text-red">0</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="text-center">
+              <p class="card-subtitle text-secondary">Holidays</p>
+              <p id="att-holiday-count" class="stat-value text-yellow">0</p>
+            </div>
+          </div>
+          <div class="card">
+            <div class="text-center">
+              <p class="card-subtitle text-secondary">Exam Days</p>
+              <p id="att-exam-count" class="stat-value text-purple">0</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </div><!-- /content-wrapper -->
   </main>
 
   <!-- Split JS modules — order matters: theme first, then nav, then features -->
+  <script src="js/toast.js"></script>
   <script src="js/theme.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/assignments.js"></script>
   <script src="js/cgpa.js"></script>
   <script src="js/timer.js"></script>
-  <script src="js/timetable.js"></script>
-</body>
+  <script src="js/timetable.js"></script>  <script src="js/attendance.js"></script></body>
 </html>
+
+<!-- Timetable Edit Modal -->
+<div id="tt-modal-overlay" class="modal-overlay hidden">
+  <div class="modal-content card">
+    <h2 class="card-title"><i class="ph-fill ph-pencil-simple"></i> Edit Time Slot</h2>
+    <input type="hidden" id="tt-modal-ri">
+    <input type="hidden" id="tt-modal-day">
+    <p id="tt-modal-subtitle" class="mb-1 text-secondary"></p>
+    <div class="form-group">
+      <label class="form-label" for="tt-modal-subject">Subject details (Class, Room, etc.)</label>
+      <textarea id="tt-modal-subject" class="form-control" rows="3" placeholder="e.g. Maths in Room 101"></textarea>
+    </div>
+    <div class="flex-end mt-1-5">
+      <button class="btn btn-secondary" id="tt-modal-cancel">Cancel</button>
+      <button class="btn btn-secondary text-red" id="tt-modal-delete"><i class="ph ph-trash"></i> Clear</button>
+      <button class="btn" id="tt-modal-save">Save</button>
+    </div>
+  </div>
+</div>
 
