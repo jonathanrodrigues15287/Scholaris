@@ -28,6 +28,16 @@
   const reuploadBtn  = document.getElementById('tt-reupload-btn');
   const addSlotBtn   = document.getElementById('tt-add-slot-btn');
 
+  // Modal elements
+  const modalOverlay = document.getElementById('tt-modal-overlay');
+  const modalSubtitle = document.getElementById('tt-modal-subtitle');
+  const modalSubject = document.getElementById('tt-modal-subject');
+  const modalRi = document.getElementById('tt-modal-ri');
+  const modalDay = document.getElementById('tt-modal-day');
+  const modalSaveBtn = document.getElementById('tt-modal-save');
+  const modalCancelBtn = document.getElementById('tt-modal-cancel');
+  const modalDeleteBtn = document.getElementById('tt-modal-delete');
+
   /* State: schedule = Array<{ time: string, slots: { [day]: string } }> */
   let schedule   = [];
   let activeDays = [...DAYS];
@@ -258,27 +268,50 @@
   function buildChip(text, ri, day) {
     const wrap = document.createElement('div');
     wrap.className = text ? 'tt-chip' : 'tt-chip tt-chip-empty';
-    const span = document.createElement('span'); span.textContent = text || '+ Add'; wrap.appendChild(span);
+    const span = document.createElement('span'); 
+    span.textContent = text || '+ Add'; 
+    wrap.appendChild(span);
+    
     wrap.addEventListener('click', () => {
-      if (wrap.dataset.editing) return;
-      wrap.dataset.editing = '1';
-      wrap.classList.add('tt-chip-editing');
-      const ta = document.createElement('textarea');
-      ta.value = schedule[ri].slots[day] || ''; ta.rows = 3; ta.className = 'tt-chip-textarea';
-      ta.setAttribute('aria-label', day + ' - ' + schedule[ri].time);
-      wrap.replaceChildren(ta); ta.focus();
-      const commit = () => {
-        const val = ta.value.trim(); schedule[ri].slots[day] = val;
-        wrap.replaceWith(buildChip(val, ri, day));
-      };
-      ta.addEventListener('blur', commit);
-      ta.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { ta.value = schedule[ri].slots[day] || ''; commit(); }
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
-      });
+      openModal(ri, day);
     });
     return wrap;
   }
+
+  function openModal(ri, day) {
+    modalRi.value = ri;
+    modalDay.value = day;
+    modalSubtitle.textContent = `${day} - ${schedule[ri].time}`;
+    modalSubject.value = schedule[ri].slots[day] || '';
+    modalOverlay.classList.remove('hidden');
+    modalSubject.focus();
+  }
+
+  function closeModal() {
+    modalOverlay.classList.add('hidden');
+  }
+
+  modalCancelBtn?.addEventListener('click', closeModal);
+  
+  modalSaveBtn?.addEventListener('click', () => {
+    const ri = parseInt(modalRi.value, 10);
+    const day = modalDay.value;
+    schedule[ri].slots[day] = modalSubject.value.trim();
+    closeModal();
+    renderGrid();
+  });
+
+  modalDeleteBtn?.addEventListener('click', () => {
+    const ri = parseInt(modalRi.value, 10);
+    const day = modalDay.value;
+    delete schedule[ri].slots[day];
+    closeModal();
+    renderGrid();
+  });
+  
+  modalOverlay?.addEventListener('click', e => {
+    if (e.target === modalOverlay) closeModal();
+  });
 
   /* ===== 8. ADD / SAVE / LOAD ===== */
   function addTimeSlot() {
