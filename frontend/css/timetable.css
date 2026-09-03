@@ -1,0 +1,388 @@
+﻿/* ============================================================
+   timetable.css — Upload zone, OCR progress, action bar,
+   weekly grid, chips, and modals
+   ============================================================ */
+
+/* ── Upload Zone ── */
+.tt-upload-zone {
+  border: 2px dashed var(--accent-color);
+  border-radius: 20px;
+  padding: 56px 32px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  box-shadow: var(--shadow-md);
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.tt-upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.tt-upload-zone:hover::before,
+.tt-upload-zone.drag-over::before { opacity: 1; }
+
+.tt-upload-zone:hover,
+.tt-upload-zone:focus {
+  border-color: var(--accent-hover);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12), var(--shadow-md);
+  transform: translateY(-3px);
+}
+
+.tt-upload-zone.drag-over {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.08);
+  transform: scale(1.02);
+  box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.15);
+}
+
+.tt-upload-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 2rem;
+  color: white;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+  animation: tt-float 3s ease-in-out infinite;
+}
+
+@keyframes tt-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+.tt-upload-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.tt-upload-hint {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.tt-upload-link {
+  color: var(--accent-color);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tt-error-msg {
+  margin-top: 16px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[data-theme='dark'] .tt-error-msg {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+/* ── OCR Progress ── */
+.tt-progress-wrap {
+  margin-top: 24px;
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-shadow: var(--shadow-md);
+}
+
+.tt-progress-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.tt-progress-bar {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent-color), #8b5cf6);
+  width: 0%;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.tt-progress-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ── Action Bar ── */
+.tt-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.tt-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.tt-action-btns {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ── Weekly Grid ── */
+.tt-grid-wrapper {
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.tt-grid-scroll {
+  overflow-x: auto;
+}
+
+.tt-grid {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.tt-grid thead tr {
+  background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08));
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tt-grid thead th {
+  padding: 14px 16px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent-color);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tt-th-time {
+  text-align: left !important;
+  min-width: 180px;
+  padding-left: 20px !important;
+  color: var(--text-secondary) !important;
+}
+
+.tt-grid tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s ease;
+}
+
+.tt-grid tbody tr:last-child { border-bottom: none; }
+
+.tt-grid tbody tr:hover { background: rgba(99, 102, 241, 0.03); }
+
+/* Time cell */
+.tt-td-time {
+  display: table-cell;
+  vertical-align: middle;
+  padding: 10px 10px 10px 16px;
+  min-width: 180px;
+  border-right: 1px solid var(--border-color);
+}
+
+.tt-time-input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  width: 140px;
+  transition: border-color 0.2s, background 0.2s;
+  font-family: 'Inter', monospace;
+}
+
+.tt-time-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.tt-del-row-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: var(--text-secondary) !important;
+}
+
+.tt-grid tbody tr:hover .tt-del-row-btn { opacity: 1; }
+
+.tt-del-row-btn:hover {
+  color: #ef4444 !important;
+  background: #fee2e2 !important;
+}
+
+[data-theme='dark'] .tt-del-row-btn:hover {
+  background: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+
+/* Slot cell */
+.tt-td-slot {
+  padding: 8px 10px;
+  vertical-align: middle;
+  min-width: 130px;
+}
+
+/* Class chips */
+.tt-chip {
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: var(--text-primary);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.tt-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+  border-color: var(--accent-color);
+}
+
+.tt-chip-empty {
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.tt-chip-empty:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.tt-chip-editing {
+  padding: 4px;
+  background: var(--bg-color);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  transform: none;
+}
+
+.tt-chip-textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-family: 'Inter', sans-serif;
+  resize: none;
+  outline: none;
+  line-height: 1.4;
+}
+
+/* Add slot button row */
+.tt-add-row-wrap {
+  padding: 4px 0 8px;
+}
+
+/* ============================================================
+   Event Chips & Color Themes
+   ============================================================ */
+
+.tt-chip {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 4px solid var(--accent-color);
+  background: var(--surface-hover);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 100%;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tt-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.tt-chip-empty {
+  border-left: none;
+  background: rgba(0,0,0,0.02);
+  border: 1.5px dashed var(--border-color);
+  color: var(--text-secondary);
+  align-items: center;
+}
+[data-theme='dark'] .tt-chip-empty { background: rgba(255,255,255,0.02); }
+
+.tt-chip-empty:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+/* Colors */
+.tt-chip-blue { border-left-color: #3b82f6; background: rgba(59, 130, 246, 0.08); }
+.tt-chip-green { border-left-color: #10b981; background: rgba(16, 185, 129, 0.08); }
+.tt-chip-purple { border-left-color: #8b5cf6; background: rgba(139, 92, 246, 0.08); }
+.tt-chip-orange { border-left-color: #f97316; background: rgba(249, 115, 22, 0.08); }
+.tt-chip-pink { border-left-color: #ec4899; background: rgba(236, 72, 153, 0.08); }
+.tt-chip-yellow { border-left-color: #eab308; background: rgba(234, 179, 8, 0.08); }
+
+[data-theme='dark'] .tt-chip-blue { background: rgba(59, 130, 246, 0.15); }
+[data-theme='dark'] .tt-chip-green { background: rgba(16, 185, 129, 0.15); }
+[data-theme='dark'] .tt-chip-purple { background: rgba(139, 92, 246, 0.15); }
+[data-theme='dark'] .tt-chip-orange { background: rgba(249, 115, 22, 0.15); }
+[data-theme='dark'] .tt-chip-pink { background: rgba(236, 72, 153, 0.15); }
+[data-theme='dark'] .tt-chip-yellow { background: rgba(234, 179, 8, 0.15); }

@@ -1,0 +1,139 @@
+﻿/* ============================================================
+   responsive.css — All media queries and mobile overrides
+   ============================================================ */
+
+/* ── Tablet & Mobile (<=768px) ── */
+@media (max-width: 768px) {
+  body {
+    overflow: auto;
+    flex-direction: column;
+  }
+
+  /* Sidebar slides in from left on mobile */
+  .sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 24px 16px;
+    border-bottom: none;
+    border-right: 1px solid var(--border-color);
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+  }
+
+  .logo {
+    margin-bottom: 32px;
+    margin-right: 0;
+  }
+
+  .nav-links {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-items: stretch;
+  }
+
+  .nav-item {
+    margin-bottom: 8px;
+  }
+
+  body.sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  /* Show hamburger on mobile */
+  .hamburger-btn {
+    display: inline-flex;
+  }
+
+  .topbar {
+    height: 72px;
+    padding: 0 16px;
+    justify-content: space-between;
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .search-container {
+    width: auto;
+    flex: 1;
+  }
+
+  .content-wrapper {
+    padding: 20px 16px;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* CGPA */
+  .cgpa-header-row,
+  .cgpa-row {
+    grid-template-columns: 1fr 80px 80px 36px;
+    gap: 6px;
+  }
+
+  /* Timer */
+  .timer-card {
+    max-width: 100%;
+  }
+
+  /* Timetable */
+  .tt-upload-zone { padding: 40px 20px; }
+  .tt-action-bar  { flex-direction: column; align-items: flex-start; }
+  .tt-th-time     { min-width: 140px; }
+  .tt-time-input  { width: 110px; }
+  .tt-td-slot     { min-width: 110px; }
+
+  /* Attendance */
+  .attendance-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Form grids */
+  .form-grid { grid-template-columns: 1fr; }
+  .timer-settings { flex-direction: column; gap: 1rem; }
+}
+
+/* ── Small Mobile (<=480px) ── */
+@media (max-width: 480px) {
+  /* Assignments */
+  .assignment-inputs {
+    flex-direction: column;
+  }
+
+  .assignment-inputs .form-control,
+  .assignment-inputs .btn {
+    width: 100%;
+  }
+
+  /* CGPA */
+  .cgpa-header-row,
+  .cgpa-row {
+    grid-template-columns: 1fr 70px 70px 32px;
+    font-size: 0.85rem;
+  }
+
+  .cgpa-actions {
+    flex-direction: column;
+  }
+
+  .cgpa-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Attendance */
+  .attendance-grid {
+    grid-template-columns: 1fr;
+  }
+}
