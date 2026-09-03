@@ -1,4 +1,4 @@
-# College Personal Assistant
+# Scholaris
 
 A web-based personal assistant for college students to manage classes, assignments, study sessions, and CGPA.
 
