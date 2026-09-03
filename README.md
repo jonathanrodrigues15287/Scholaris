@@ -5,7 +5,7 @@ A web-based personal assistant for college students to manage classes, assignmen
 ## Project Structure
 
 ```
-college-personal-assistant/
+Scholaris/
 ├── frontend/
 │   ├── index.html        # Main application UI
 │   ├── css/              # Module-specific styles
