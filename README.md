@@ -1,4 +1,4 @@
-# Scholaris
+# College Personal Assistant
 
 A web-based personal assistant for college students to manage classes, assignments, study sessions, and CGPA.
 
@@ -7,16 +7,24 @@ A web-based personal assistant for college students to manage classes, assignmen
 ```
 college-personal-assistant/
 ├── frontend/
-│   ├── abc               # Bundled version of the entire codebase
 │   ├── index.html        # Main application UI
-│   ├── styles.css        # Styling, theming, responsive layout
+│   ├── css/              # Module-specific styles
+│   │   ├── assignments.css
+│   │   ├── dashboard.css
+│   │   ├── responsive.css
+│   │   ├── style.css
+│   │   └── timetable.css
 │   └── js/
-│       ├── theme.js      # Theme toggle, localStorage persistence, prefers-color-scheme
-│       ├── nav.js        # Sidebar navigation, mobile hamburger menu
-│       ├── assignments.js # Add/complete/delete tasks, localStorage, dashboard sync
-│       ├── cgpa.js       # Dynamic multi-subject SGPA calculator, localStorage
-│       ├── timer.js      # Pomodoro timer with SVG ring, focus/break phases, session history
-│       └── timetable.js  # Timetable upload (PDF/image), Tesseract.js OCR, grid rendering
+│       ├── assignments.js # Task CRUD, submission tracking
+│       ├── attendance.js  # Attendance tracking and stats
+│       ├── cgpa.js       # Dynamic SGPA/CGPA calculator
+│       ├── nav.js        # Sidebar navigation handling
+│       ├── states.js     # Empty states and UI placeholders
+│       ├── theme.js      # Theme toggling
+│       ├── timer.js      # Pomodoro timer implementation
+│       ├── timetable.js  # Timetable rendering and OCR
+│       ├── toast.js      # Toast notification system
+│       └── validation.js # Input validation helpers
 └── README.md
 ```
 
@@ -24,9 +32,10 @@ college-personal-assistant/
 
 - **Dashboard** — Live overview of upcoming classes and pending deadlines
 - **Timetable** — Upload a PDF or image of your timetable to automatically extract and parse your schedule using in-browser OCR (Tesseract.js). The parsed schedule is editable and persisted locally.
-- **Assignments** — Full task CRUD with due-date badges and completion toggle; persisted to `localStorage`
+- **Assignments** — Full task CRUD with due-date badges, completion toggle, and a dedicated section for submitted assignments; persisted to `localStorage`
 - **Study Planner** — Pomodoro timer (25 min focus / 5 min break) with animated SVG ring. Includes a session history log where you can record what you accomplished after each focus block.
 - **CGPA Calculator** — Dynamic multi-subject SGPA calculator; rows persisted to `localStorage`
+- **Attendance Tracker** — Log daily lecture attendance, mark holidays or exam days, and track present/absent statistics.
 
 ## Tech
 
@@ -36,3 +45,4 @@ college-personal-assistant/
 - Phosphor Icons via CDN
 - Google Fonts (Inter)
 - `localStorage` for all data persistence
+
