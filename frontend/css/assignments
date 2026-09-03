@@ -1,0 +1,137 @@
+/* ============================================================
+   assignments.css — Assignment form, filters, task list items
+   ============================================================ */
+
+/* ── Assignment Form ── */
+.assignment-inputs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.assignment-inputs .form-control {
+  flex: 1;
+  min-width: 140px;
+  margin-bottom: 0;
+}
+
+.assignment-inputs .btn {
+  flex-shrink: 0;
+}
+
+/* ── Filter/Sort Controls ── */
+.assignment-filters-wrap {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  width: auto;
+  padding: 6px 30px 6px 12px;
+}
+
+.priority-select {
+  min-width: 120px;
+}
+
+/* ── Task List Items ── */
+.task-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.task-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-title {
+  font-size: 0.95rem;
+}
+
+.task-done .task-title {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+/* ============================================================
+   Priority Mode Control
+   ============================================================ */
+
+.priority-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.priority-mode-toggle {
+  display: flex;
+  background: var(--surface-hover);
+  border-radius: 8px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+}
+
+.priority-mode-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.priority-mode-btn i {
+  font-size: 0.85rem;
+}
+
+.priority-mode-btn:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+.priority-mode-btn.active {
+  background: var(--bg-color);
+  color: var(--accent-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .priority-mode-btn.active {
+  background: var(--surface-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.priority-select-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.priority-auto-badge {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  font-weight: 500;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* When in auto mode, hide the select text but keep it taking space, and show badge */
+.priority-control[data-mode="auto"] .priority-select {
+  color: transparent !important; /* hide the text */
+  background-color: var(--surface-hover); /* make it look disabled/auto */
+}
