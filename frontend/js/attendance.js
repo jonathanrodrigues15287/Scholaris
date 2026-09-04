@@ -115,41 +115,57 @@
   }
 
   function render() {
-    const records = load();
-    if (records.length === 0) {
-      list.innerHTML = `<li class="mock-list-item empty-state"><i class="ph ph-calendar-slash"></i> No attendance records yet</li>`;
-      return;
-    }
+    try {
+      const records = load();
+      if (records.length === 0) {
+        list.innerHTML = window.States.empty(
+          'ph ph-calendar-slash',
+          'No attendance records yet',
+          'Log your first lecture by selecting a date and course above.'
+        );
+        return;
+      }
 
-    const sortedRecords = [...records].sort((a, b) => {
-      return new Date(b.date) - new Date(a.date);
-    });
+      const sortedRecords = [...records].sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+      });
 
-    list.innerHTML = sortedRecords.map((r, i) => {
-      const date = new Date(r.date);
-      const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-      const dayStr = date.toLocaleDateString([], { weekday: 'short' });
+      list.innerHTML = sortedRecords.map((r, i) => {
+        const date = new Date(r.date);
+        const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+        const dayStr = date.toLocaleDateString([], { weekday: 'short' });
 
-      return `
-        <li class="mock-list-item">
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 1rem;">
-            <div style="flex: 1;">
-              <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
-                <strong>${escapeHtml(r.course || 'No Course')}</strong>
-                <span class="badge ${getStatusBadgeClass(r.status)}">${getStatusLabel(r.status)}</span>
+        return `
+          <li class="mock-list-item">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 1rem;">
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                  <strong>${escapeHtml(r.course || 'No Course')}</strong>
+                  <span class="badge ${getStatusBadgeClass(r.status)}">${getStatusLabel(r.status)}</span>
+                </div>
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">
+                  <i class="ph ph-calendar"></i> ${dayStr}, ${dateStr}
+                </span>
               </div>
-              <span style="font-size: 0.85rem; color: var(--text-secondary);">
-                <i class="ph ph-calendar"></i> ${dayStr}, ${dateStr}
-              </span>
+              <button class="icon-btn" data-action="delete" data-index="${i}" title="Delete record" style="color: var(--text-secondary);">
+                <i class="ph ph-trash"></i>
+              </button>
             </div>
-            <button class="icon-btn" data-action="delete" data-index="${i}" title="Delete record" style="color: var(--text-secondary);">
-              <i class="ph ph-trash"></i>
-            </button>
-          </div>
-        </li>
-      `;
-    }).join('');
+          </li>
+        `;
+      }).join('');
+
+    } catch (e) {
+      console.error('Attendance render error:', e);
+      list.innerHTML = window.States.error(
+        "Couldn't load attendance records.",
+        'window._attendanceRender()'
+      );
+    }
   }
+
+  // Expose render globally for the error-state retry button
+  window._attendanceRender = render;
 
   function updateStats() {
     const records = load();
@@ -178,58 +194,81 @@
   });
 
   function addAttendance() {
+    // Clear previous errors
+    Validate.clearError(dateInput);
+    Validate.clearError(courseInput);
+
+    let valid = true;
     const date = dateInput.value.trim();
-    const status = statusSelect.value;
+
+    // 1. Date required
+    if (!date) {
+      Validate.setError(dateInput, 'Please select a date.');
+      dateInput.focus();
+      valid = false;
+    } else {
+      const dateCheck = Validate.isValidDate(date);
+      if (!dateCheck.valid) {
+        Validate.setError(dateInput, dateCheck.error);
+        dateInput.focus();
+        valid = false;
+      }
+    }
+
     let course = courseInput.value.trim();
 
-    if (!date) {
-      if (window.showToast) window.showToast('Please select a date', 'error');
-      else alert('Please select a date');
-      dateInput.focus();
-      return;
-    }
-
+    // 2. Handle custom course name
     if (course === 'Custom') {
-      course = prompt("Enter custom course/subject name:");
-      if (!course) return; // user cancelled
+      const custom = prompt('Enter custom course/subject name:');
+      if (!custom || !custom.trim()) {
+        Validate.setError(courseInput, 'Please enter a course name.');
+        courseInput.focus();
+        valid = false;
+      } else {
+        course = custom.trim();
+      }
     }
 
-    if (!course || course === 'N/A' || course === '') {
-      if (window.showToast) window.showToast('Please enter or select a valid course/subject name', 'error');
-      else alert('Please enter a course/subject name');
+    // 3. Course must not be empty or placeholder
+    if (valid && (!course || course === '' || course === 'N/A')) {
+      Validate.setError(courseInput, 'Please select or enter a valid course.');
       courseInput.focus();
-      return;
+      valid = false;
     }
 
-    const records = load();
-    const existingIndex = records.findIndex(r => r.date === date && r.course === course);
+    if (!valid) return;
 
+    const status = statusSelect.value;
+    const records = load();
+
+    // 4. Duplicate check — same date + same course
+    const existingIndex = records.findIndex(r => r.date === date && r.course === course);
     if (existingIndex >= 0) {
+      // Update existing record instead of blocking — show info
       records[existingIndex].status = status;
+      save(records);
+      if (window.showToast) window.showToast(`Updated attendance for ${course} on this date.`);
     } else {
       records.push({ date, status, course });
+      save(records);
+      if (window.showToast) window.showToast('Attendance logged successfully!');
     }
 
-    save(records);
-    
-    if (window.showToast) window.showToast('Attendance logged successfully!');
-    
-    // Keep date but reset status and trigger dropdown update
     statusSelect.value = 'present';
-    // dateInput.value = ''; // keep date so they can log multiple for the same day
     updateCourseDropdown(date);
     courseInput.focus();
   }
 
-  addBtn?.addEventListener('click', addAttendance);
-  dateInput?.addEventListener('change', e => {
+  // Clear errors on field change
+  dateInput?.addEventListener('change', (e) => {
+    Validate.clearError(dateInput);
     updateCourseDropdown(e.target.value);
   });
+  courseInput?.addEventListener('change', () => Validate.clearError(courseInput));
   dateInput?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      courseInput.focus();
-    }
+    if (e.key === 'Enter') courseInput.focus();
   });
+  addBtn?.addEventListener('click', addAttendance);
 
   render();
   updateStats();
