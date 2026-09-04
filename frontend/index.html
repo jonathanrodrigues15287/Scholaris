@@ -6,56 +6,57 @@
   <title>Scholaris — College Personal Assistant</title>
   <meta name="description" content="Scholaris is your all-in-one college personal assistant for managing timetables, assignments, study sessions, and CGPA.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/style.css">
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
-<!-- No data-theme here — theme.js sets it from localStorage / prefers-color-scheme -->
 <body>
 
   <!-- Mobile sidebar overlay -->
-  <div id="sidebar-overlay" class="sidebar-overlay"></div>
+  <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
 
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="logo">
-      <i class="ph-fill ph-graduation-cap"></i>
+      <i class="ph-fill ph-graduation-cap" aria-hidden="true"></i>
       <span>Scholaris</span>
     </div>
     
-    <ul class="nav-links">
-      <li class="nav-item">
-        <a class="nav-link active" data-target="dashboard">
-          <i class="ph-fill ph-house"></i> Dashboard
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-target="timetable">
-          <i class="ph ph-calendar-blank"></i> Timetable
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-target="assignments">
-          <i class="ph-fill ph-list-checks"></i> Assignments
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-target="study-planner">
-          <i class="ph-fill ph-timer"></i> Study Planner
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-target="cgpa">
-          <i class="ph-fill ph-calculator"></i> CGPA Calculator
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-target="attendance">
-          <i class="ph-fill ph-calendar-check"></i> Attendance
-        </a>
-      </li>
-    </ul>
+    <nav aria-label="Main Navigation">
+      <ul class="nav-links">
+        <li class="nav-item">
+          <a class="nav-link active" data-target="dashboard">
+            <i class="ph-fill ph-house" aria-hidden="true"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-target="timetable">
+            <i class="ph ph-calendar-blank" aria-hidden="true"></i> Timetable
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-target="assignments">
+            <i class="ph-fill ph-list-checks" aria-hidden="true"></i> Assignments
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-target="study-planner">
+            <i class="ph-fill ph-timer" aria-hidden="true"></i> Study Planner
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-target="cgpa">
+            <i class="ph-fill ph-calculator" aria-hidden="true"></i> CGPA Calculator
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-target="attendance">
+            <i class="ph-fill ph-calendar-check" aria-hidden="true"></i> Attendance
+          </a>
+        </li>
+      </ul>
+    </nav>
   </aside>
 
   <!-- Main Content Area -->
@@ -65,15 +66,15 @@
     <header class="topbar">
       <!-- Hamburger — only visible on mobile -->
       <button class="hamburger-btn" id="hamburger-btn" title="Toggle Sidebar" aria-label="Toggle sidebar">
-        <i class="ph ph-list"></i>
+        <i class="ph ph-list" aria-hidden="true"></i>
       </button>
-      <div class="search-container">
-        <i class="ph ph-magnifying-glass" style="color: var(--text-secondary)"></i>
+      <form class="search-container" role="search" onsubmit="event.preventDefault();">
+        <i class="ph ph-magnifying-glass search-icon" aria-hidden="true"></i>
         <input type="text" placeholder="Search resources, notices..." aria-label="Search">
-      </div>
+      </form>
       <button class="theme-toggle" id="theme-btn" title="Toggle Theme" aria-label="Toggle theme">
         <!-- Icon set by theme.js at runtime -->
-        <i class="ph ph-sun"></i>
+        <i class="ph ph-sun" aria-hidden="true"></i>
       </button>
     </header>
 
@@ -82,47 +83,50 @@
 
       <!-- ── Dashboard ── -->
       <section id="dashboard" class="section active">
-        <div class="section-header">
+        <header class="section-header">
           <h1 class="section-title">Welcome back, Student</h1>
           <p class="section-subtitle">Here's your college overview for today.</p>
-        </div>
+        </header>
 
         <div class="dashboard-grid">
           <!-- Up Next -->
-          <div class="card">
-            <h2 class="card-title"><i class="ph-fill ph-clock"></i> Up Next</h2>
+          <article class="card">
+            <header>
+              <h2 class="card-title"><i class="ph-fill ph-clock" aria-hidden="true"></i> Up Next</h2>
+            </header>
             <ul class="mock-list" id="dashboard-up-next">
               <li class="mock-list-item empty-state">
-                <i class="ph ph-calendar-slash"></i> No upcoming classes
+                <i class="ph ph-calendar-slash" aria-hidden="true"></i> No upcoming classes
               </li>
             </ul>
-          </div>
+          </article>
 
-          <!-- Deadlines (live-synced from assignments.js) -->
-          <div class="card">
-            <h2 class="card-title"><i class="ph-fill ph-warning"></i> Deadlines</h2>
+          <!-- Deadlines -->
+          <article class="card">
+            <header>
+              <h2 class="card-title"><i class="ph-fill ph-warning" aria-hidden="true"></i> Deadlines</h2>
+            </header>
             <ul class="mock-list" id="dashboard-deadlines">
               <li class="mock-list-item empty-state">
-                <i class="ph ph-check-circle"></i> No pending deadlines
+                <i class="ph ph-check-circle" aria-hidden="true"></i> No pending deadlines
               </li>
             </ul>
-          </div>
+          </article>
         </div>
       </section>
 
       <!-- ── Timetable ── -->
       <section id="timetable" class="section">
-        <div class="section-header">
+        <header class="section-header">
           <h1 class="section-title">Timetable &amp; Reminders</h1>
           <p class="section-subtitle">Upload your timetable PDF or image to get started.</p>
-        </div>
+        </header>
 
         <!-- Upload Zone -->
-        <div class="tt-upload-zone" id="tt-upload-zone" role="button" tabindex="0"
-             aria-label="Upload timetable PDF or image">
+        <div class="tt-upload-zone" id="tt-upload-zone" role="button" tabindex="0" aria-label="Upload timetable PDF or image">
           <input type="file" id="tt-file-input" accept=".pdf,image/*" hidden aria-hidden="true">
           <div class="tt-upload-icon">
-            <i class="ph ph-upload-simple"></i>
+            <i class="ph ph-upload-simple" aria-hidden="true"></i>
           </div>
           <p class="tt-upload-title">Drop your timetable here</p>
           <p class="tt-upload-hint">Supports PDF, PNG, JPG, JPEG, WEBP — or <span class="tt-upload-link">click to browse</span></p>
@@ -138,23 +142,21 @@
 
         <!-- Parsed timetable output -->
         <div id="tt-output" hidden>
-          <!-- Action bar above the grid -->
           <div class="tt-action-bar">
             <p class="tt-action-hint">
-              <i class="ph ph-info"></i>
-              Review the extracted schedule below. Click any cell to edit.
+              <i class="ph ph-info" aria-hidden="true"></i> Review the extracted schedule below. Click any cell to edit.
             </p>
             <div class="tt-action-btns">
               <button class="btn btn-secondary" id="tt-reupload-btn">
-                <i class="ph ph-upload-simple"></i> Re-upload
+                <i class="ph ph-upload-simple" aria-hidden="true"></i> Re-upload
               </button>
               <button class="btn" id="tt-save-btn">
-                <i class="ph ph-floppy-disk"></i> Save Schedule
+                <i class="ph ph-floppy-disk" aria-hidden="true"></i> Save Schedule
               </button>
             </div>
           </div>
 
-          <!-- Weekly grid — populated by timetable.js -->
+          <!-- Weekly grid -->
           <div class="tt-grid-wrapper">
             <div class="tt-grid-scroll">
               <table class="tt-grid" id="tt-grid">
@@ -164,70 +166,97 @@
             </div>
           </div>
 
-          <!-- Add row controls -->
           <div class="tt-add-row-wrap">
             <button class="btn btn-secondary tt-add-slot-btn" id="tt-add-slot-btn">
-              <i class="ph ph-plus"></i> Add Time Slot
+              <i class="ph ph-plus" aria-hidden="true"></i> Add Time Slot
             </button>
           </div>
         </div>
-
       </section>
 
       <!-- ── Assignments ── -->
       <section id="assignments" class="section">
-        <div class="section-header">
+        <header class="section-header">
           <h1 class="section-title">Assignments &amp; Deadlines</h1>
           <p class="section-subtitle">Track tasks and never miss a deadline.</p>
-        </div>
-        <div class="card">
-          <div class="assignment-inputs">
+        </header>
+
+        <article class="card">
+          <form class="assignment-inputs" id="assignment-form" onsubmit="event.preventDefault();">
             <input type="text" id="assignment-title" class="form-control" placeholder="Assignment title..." aria-label="Assignment title" required>
             <input type="text" id="assignment-date" class="form-control" placeholder="Due date (optional)" aria-label="Due date">
-            <select id="assignment-priority" class="form-control" aria-label="Priority" style="min-width: 120px;">
-              <option value="low">Low Priority</option>
-              <option value="medium" selected>Medium Priority</option>
-              <option value="high">High Priority</option>
-            </select>
-            <button class="btn" id="add-assignment-btn">
-              <i class="ph ph-plus"></i> Add Task
+
+            <!-- Priority control: Manual/Auto toggle + select -->
+            <div class="priority-control" id="priority-control">
+              <div class="priority-mode-toggle" role="group" aria-label="Priority mode">
+                <button type="button" class="priority-mode-btn active" id="priority-mode-manual" data-mode="manual" title="Set priority manually">
+                  <i class="ph ph-pencil" aria-hidden="true"></i> Manual
+                </button>
+                <button type="button" class="priority-mode-btn" id="priority-mode-auto" data-mode="auto" title="Auto-compute priority from deadline and workload">
+                  <i class="ph ph-sparkle" aria-hidden="true"></i> Auto
+                </button>
+              </div>
+              <div class="priority-select-wrap">
+                <select id="assignment-priority" class="form-control priority-select" aria-label="Priority">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+                <span id="priority-auto-badge" class="priority-auto-badge" hidden></span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn" id="add-assignment-btn">
+              <i class="ph ph-plus" aria-hidden="true"></i> Add Task
             </button>
-          </div>
-          <div class="assignment-filters mb-1" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <select id="assignment-filter-status" class="form-control" style="width: auto; padding: 6px 30px 6px 12px;">
+          </form>
+
+          <div class="assignment-filters-wrap mb-1">
+            <select id="assignment-filter-status" class="form-control filter-select" aria-label="Filter by Status">
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
               <option value="completed">Completed</option>
+              <option value="overdue">Overdue</option>
             </select>
-            <select id="assignment-filter-priority" class="form-control" style="width: auto; padding: 6px 30px 6px 12px;">
+            <select id="assignment-filter-priority" class="form-control filter-select" aria-label="Filter by Priority">
               <option value="all">All Priorities</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
             </select>
-            <select id="assignment-sort" class="form-control" style="width: auto; padding: 6px 30px 6px 12px;">
-              <option value="date">Sort by Date</option>
+            <select id="assignment-sort" class="form-control filter-select" aria-label="Sort Assignments">
+              <option value="date">Sort by Due date</option>
               <option value="priority">Sort by Priority</option>
+              <option value="title">Sort by Subject</option>
+              <option value="completion">Sort by Completion</option>
+              <option value="recent">Sort by Recently added</option>
             </select>
           </div>
+
           <ul class="mock-list" id="assignments-list">
             <li class="mock-list-item empty-state">
-              <i class="ph ph-list-checks"></i> No assignments yet
+              <i class="ph ph-list-checks" aria-hidden="true"></i> No assignments yet
             </li>
           </ul>
-        </div>
+
+          <div id="submitted-assignments-section" class="mt-2" style="display: none;">
+            <h3 class="card-subtitle mb-1 text-secondary">Submitted Assignments</h3>
+            <ul class="mock-list" id="submitted-assignments-list">
+            </ul>
+          </div>
+        </article>
       </section>
 
       <!-- ── Study Planner ── -->
       <section id="study-planner" class="section">
-        <div class="section-header">
+        <header class="section-header">
           <h1 class="section-title">Study Planner</h1>
           <p class="section-subtitle">Stay focused with custom timers and track your sessions.</p>
-        </div>
+        </header>
         
         <div class="dashboard-grid">
           <!-- Timer Card -->
-          <div class="card timer-card">
+          <article class="card timer-card">
             <p id="timer-mode" class="timer-mode-label">🎯 Focus Session</p>
 
             <div class="timer-settings">
@@ -244,89 +273,87 @@
             <!-- SVG ring timer -->
             <div class="timer-ring-wrapper">
               <svg class="timer-svg" viewBox="0 0 120 120" aria-hidden="true">
-                <!-- Background track -->
                 <circle cx="60" cy="60" r="54" fill="none" stroke="var(--border-color)" stroke-width="8"/>
-                <!-- Progress ring — animated by timer.js -->
-                <circle id="timer-ring" cx="60" cy="60" r="54" fill="none"
-                  stroke="var(--accent-color)" stroke-width="8"
-                  stroke-linecap="round"
-                  stroke-dasharray="339.29"
-                  stroke-dashoffset="0"
-                  transform="rotate(-90 60 60)"
-                  style="transition: stroke-dashoffset 1s linear, stroke 0.4s ease;"/>
+                <circle id="timer-ring" class="timer-ring-circle" cx="60" cy="60" r="54" fill="none"
+                  stroke="var(--accent-color)" stroke-width="8" stroke-linecap="round"
+                  stroke-dasharray="339.29" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
               </svg>
               <div id="timer-display" class="timer-display" aria-live="polite">25:00</div>
             </div>
 
             <div class="timer-controls">
               <button class="btn" id="timer-start">
-                <i class="ph ph-play"></i> Start Focus
+                <i class="ph ph-play" aria-hidden="true"></i> Start Focus
               </button>
               <button class="btn btn-secondary" id="timer-reset">
-                <i class="ph ph-arrow-counter-clockwise"></i> Reset
+                <i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> Reset
               </button>
             </div>
-          </div>
+          </article>
 
           <!-- History Card -->
-          <div class="card history-card">
-            <h2 class="card-title"><i class="ph-fill ph-clock-counter-clockwise"></i> Session History</h2>
+          <article class="card history-card">
+            <header>
+              <h2 class="card-title"><i class="ph-fill ph-clock-counter-clockwise" aria-hidden="true"></i> Session History</h2>
+            </header>
             <ul class="mock-list" id="session-history-list">
               <li class="mock-list-item empty-state">
-                <i class="ph ph-list-magnifying-glass"></i> No sessions recorded yet
+                <i class="ph ph-list-magnifying-glass" aria-hidden="true"></i> No sessions recorded yet
               </li>
             </ul>
-          </div>
+          </article>
         </div>
 
         <!-- Session Completion Modal -->
-        <div id="session-modal-overlay" class="modal-overlay hidden">
-          <div class="modal-content card">
-            <h2 class="card-title"><i class="ph-fill ph-party-horn"></i> Session Complete!</h2>
+        <div id="session-modal-overlay" class="modal-overlay hidden" aria-hidden="true">
+          <dialog class="modal-content card" id="session-modal" open>
+            <header>
+              <h2 class="card-title"><i class="ph-fill ph-party-horn" aria-hidden="true"></i> Session Complete!</h2>
+            </header>
             <p class="mb-1 text-secondary">Great job! What did you work on during this focus session?</p>
             <input type="text" id="session-task-input" class="form-control" placeholder="e.g. Studied Calculus Chapter 4..." aria-label="Session task">
-            <div class="flex-end mt-1-5">
+            <footer class="flex-end mt-1-5">
               <button class="btn btn-secondary" id="session-skip-btn">Skip</button>
               <button class="btn" id="session-save-btn">Save Session</button>
-            </div>
-          </div>
+            </footer>
+          </dialog>
         </div>
       </section>
 
       <!-- ── CGPA Calculator ── -->
       <section id="cgpa" class="section">
-        <div class="section-header">
+        <header class="section-header">
           <h1 class="section-title">CGPA / SGPA Calculator</h1>
           <p class="section-subtitle">Add semesters and subjects to compute your SGPA and CGPA.</p>
-        </div>
+        </header>
         
-        <!-- Semesters Container -->
         <div id="semesters-container"></div>
         
         <div class="mb-2">
           <button class="btn btn-secondary" id="add-semester-btn">
-            <i class="ph ph-plus"></i> Add Semester
+            <i class="ph ph-plus" aria-hidden="true"></i> Add Semester
           </button>
         </div>
 
-        <div class="card">
-          <h2 class="card-title">Overall CGPA</h2>
-          <!-- Result display -->
+        <article class="card">
+          <header>
+            <h2 class="card-title">Overall CGPA</h2>
+          </header>
           <div class="cgpa-result-box">
             <span id="overall-cgpa-result">—</span>
           </div>
-        </div>
+        </article>
       </section>
 
       <!-- ── Attendance Tracker ── -->
       <section id="attendance" class="section">
-        <div class="section-header">
+        <header class="section-header">
           <h1 class="section-title">Attendance Tracker</h1>
           <p class="section-subtitle">Log your daily lecture attendance and mark holidays/exam days.</p>
-        </div>
+        </header>
 
-        <div class="card">
-          <div class="attendance-grid">
+        <article class="card">
+          <form class="attendance-grid" id="attendance-form" onsubmit="event.preventDefault();">
             <div>
               <label class="form-label" for="att-date">Date</label>
               <input type="text" id="att-date" class="form-control" placeholder="Select date..." aria-label="Attendance date">
@@ -347,80 +374,147 @@
               </select>
             </div>
             <div class="attendance-btn-wrap">
-              <button class="btn w-100" id="add-attendance-btn">
-                <i class="ph ph-plus"></i> Log Attendance
+              <button type="submit" class="btn w-100" id="add-attendance-btn">
+                <i class="ph ph-plus" aria-hidden="true"></i> Log Attendance
               </button>
             </div>
-          </div>
+          </form>
 
           <div>
-            <h3 class="card-subtitle mb-1 text-secondary" style="font-size: 0.95rem;">Attendance History</h3>
+            <h3 class="card-subtitle mb-1 text-secondary attendance-history-title">Attendance History</h3>
             <ul class="mock-list" id="attendance-list">
               <li class="mock-list-item empty-state">
-                <i class="ph ph-calendar-slash"></i> No attendance records yet
+                <i class="ph ph-calendar-slash" aria-hidden="true"></i> No attendance records yet
               </li>
             </ul>
           </div>
-        </div>
+        </article>
 
         <!-- Summary Stats -->
         <div class="dashboard-grid mt-1-5">
-          <div class="card">
-            <div class="text-center">
-              <p class="card-subtitle text-secondary">Present</p>
-              <p id="att-present-count" class="stat-value text-accent">0</p>
-            </div>
-          </div>
-          <div class="card">
-            <div class="text-center">
-              <p class="card-subtitle text-secondary">Absent</p>
-              <p id="att-absent-count" class="stat-value text-red">0</p>
-            </div>
-          </div>
-          <div class="card">
-            <div class="text-center">
-              <p class="card-subtitle text-secondary">Holidays</p>
-              <p id="att-holiday-count" class="stat-value text-yellow">0</p>
-            </div>
-          </div>
-          <div class="card">
-            <div class="text-center">
-              <p class="card-subtitle text-secondary">Exam Days</p>
-              <p id="att-exam-count" class="stat-value text-purple">0</p>
-            </div>
-          </div>
+          <article class="card text-center">
+            <p class="card-subtitle text-secondary">Present</p>
+            <p id="att-present-count" class="stat-value text-accent">0</p>
+          </article>
+          <article class="card text-center">
+            <p class="card-subtitle text-secondary">Absent</p>
+            <p id="att-absent-count" class="stat-value text-red">0</p>
+          </article>
+          <article class="card text-center">
+            <p class="card-subtitle text-secondary">Holidays</p>
+            <p id="att-holiday-count" class="stat-value text-yellow">0</p>
+          </article>
+          <article class="card text-center">
+            <p class="card-subtitle text-secondary">Exam Days</p>
+            <p id="att-exam-count" class="stat-value text-purple">0</p>
+          </article>
         </div>
       </section>
 
-    </div><!-- /content-wrapper -->
+    </div>
   </main>
 
-  <!-- Split JS modules — order matters: theme first, then nav, then features -->
+  <script src="js/validation.js"></script>
+  <script src="js/states.js"></script>
   <script src="js/toast.js"></script>
   <script src="js/theme.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/assignments.js"></script>
   <script src="js/cgpa.js"></script>
   <script src="js/timer.js"></script>
-  <script src="js/timetable.js"></script>  <script src="js/attendance.js"></script></body>
-</html>
+  <script src="js/timetable.js"></script>
+  <script src="js/attendance.js"></script>
 
-<!-- Timetable Edit Modal -->
-<div id="tt-modal-overlay" class="modal-overlay hidden">
-  <div class="modal-content card">
-    <h2 class="card-title"><i class="ph-fill ph-pencil-simple"></i> Edit Time Slot</h2>
-    <input type="hidden" id="tt-modal-ri">
-    <input type="hidden" id="tt-modal-day">
-    <p id="tt-modal-subtitle" class="mb-1 text-secondary"></p>
-    <div class="form-group">
-      <label class="form-label" for="tt-modal-subject">Subject details (Class, Room, etc.)</label>
-      <textarea id="tt-modal-subject" class="form-control" rows="3" placeholder="e.g. Maths in Room 101"></textarea>
-    </div>
-    <div class="flex-end mt-1-5">
-      <button class="btn btn-secondary" id="tt-modal-cancel">Cancel</button>
-      <button class="btn btn-secondary text-red" id="tt-modal-delete"><i class="ph ph-trash"></i> Clear</button>
-      <button class="btn" id="tt-modal-save">Save</button>
-    </div>
+  <!-- Timetable Edit Modal (Rich Form) -->
+  <div id="tt-modal-overlay" class="modal-overlay hidden" aria-hidden="true">
+    <dialog class="modal-content card" id="tt-modal" style="max-width: 500px;" open>
+      <header>
+        <h2 class="card-title" id="tt-modal-title"><i class="ph-fill ph-calendar-plus" aria-hidden="true"></i> Edit Class Event</h2>
+      </header>
+      
+      <form id="tt-modal-form" onsubmit="event.preventDefault();">
+        <input type="hidden" id="tt-modal-id"> <!-- Hidden ID to track edit vs new -->
+        
+        <!-- Subject -->
+        <div class="form-group mb-1">
+          <label class="form-label" for="tt-modal-subject">Subject / Course Name</label>
+          <input type="text" id="tt-modal-subject" class="form-control" placeholder="e.g. Data Structures" required>
+        </div>
+
+        <!-- Day and Times -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;" class="mb-1">
+          <div class="form-group">
+            <label class="form-label" for="tt-modal-day">Day</label>
+            <select id="tt-modal-day" class="form-control" required>
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+              <option value="Sunday">Sunday</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tt-modal-start">Start Time</label>
+            <input type="time" id="tt-modal-start" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tt-modal-end">End Time</label>
+            <input type="time" id="tt-modal-end" class="form-control" required>
+          </div>
+        </div>
+
+        <!-- Conflict Warning Placeholder -->
+        <div id="tt-modal-conflict-warning" hidden style="margin-bottom: 1rem; padding: 0.5rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; color: #ef4444; font-size: 0.85rem; display: flex; gap: 6px; align-items: flex-start;">
+          <i class="ph-fill ph-warning-circle" style="font-size: 1.1rem; margin-top: 1px;"></i>
+          <span id="tt-modal-conflict-text">Conflict warning text</span>
+        </div>
+
+        <!-- Room and Faculty -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" class="mb-1">
+          <div class="form-group">
+            <label class="form-label" for="tt-modal-room">Room (Optional)</label>
+            <input type="text" id="tt-modal-room" class="form-control" placeholder="e.g. Lab 3">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tt-modal-faculty">Faculty (Optional)</label>
+            <input type="text" id="tt-modal-faculty" class="form-control" placeholder="e.g. Dr. Turing">
+          </div>
+        </div>
+
+        <!-- Color Theme Selector -->
+        <div class="form-group mb-1-5">
+          <label class="form-label">Color Theme</label>
+          <div class="tt-color-picker" id="tt-modal-colors" style="display: flex; gap: 0.5rem;">
+            <!-- Blue -->
+            <button type="button" class="color-btn active" data-color="blue" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #3b82f6; cursor: pointer;"></button>
+            <!-- Green -->
+            <button type="button" class="color-btn" data-color="green" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #10b981; cursor: pointer;"></button>
+            <!-- Purple -->
+            <button type="button" class="color-btn" data-color="purple" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #8b5cf6; cursor: pointer;"></button>
+            <!-- Orange -->
+            <button type="button" class="color-btn" data-color="orange" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #f97316; cursor: pointer;"></button>
+            <!-- Pink -->
+            <button type="button" class="color-btn" data-color="pink" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #ec4899; cursor: pointer;"></button>
+            <!-- Yellow/Gold -->
+            <button type="button" class="color-btn" data-color="yellow" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #eab308; cursor: pointer;"></button>
+          </div>
+          <input type="hidden" id="tt-modal-color-value" value="blue">
+        </div>
+
+        <footer style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary text-red" id="tt-modal-delete" title="Delete class"><i class="ph ph-trash" aria-hidden="true"></i> Delete</button>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary" id="tt-modal-duplicate" title="Duplicate class"><i class="ph ph-copy" aria-hidden="true"></i> Duplicate</button>
+            <button type="button" class="btn btn-secondary" id="tt-modal-cancel">Cancel</button>
+            <button type="submit" class="btn" id="tt-modal-save">Save Class</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
   </div>
-</div>
-
+</body>
+</html>
