@@ -30,15 +30,25 @@
 
   // Modal elements
   const modalOverlay = document.getElementById('tt-modal-overlay');
-  const modalSubtitle = document.getElementById('tt-modal-subtitle');
+  const modalForm = document.getElementById('tt-modal-form');
+  const modalTitle = document.getElementById('tt-modal-title');
+  const modalId = document.getElementById('tt-modal-id');
   const modalSubject = document.getElementById('tt-modal-subject');
-  const modalRi = document.getElementById('tt-modal-ri');
   const modalDay = document.getElementById('tt-modal-day');
+  const modalStart = document.getElementById('tt-modal-start');
+  const modalEnd = document.getElementById('tt-modal-end');
+  const modalRoom = document.getElementById('tt-modal-room');
+  const modalFaculty = document.getElementById('tt-modal-faculty');
+  const modalColorVal = document.getElementById('tt-modal-color-value');
+  const modalColors = document.querySelectorAll('.color-btn');
   const modalSaveBtn = document.getElementById('tt-modal-save');
   const modalCancelBtn = document.getElementById('tt-modal-cancel');
   const modalDeleteBtn = document.getElementById('tt-modal-delete');
+  const modalDuplicateBtn = document.getElementById('tt-modal-duplicate');
+  const modalWarning = document.getElementById('tt-modal-conflict-warning');
+  const modalWarningText = document.getElementById('tt-modal-conflict-text');
 
-  /* State: schedule = Array<{ time: string, slots: { [day]: string } }> */
+  /* State: schedule = Array<{ id, subject, day, startTime, endTime, room, faculty, color }> */
   let schedule   = [];
   let activeDays = [...DAYS];
 
@@ -66,6 +76,9 @@
     uploadZone.hidden   = true;
     progressWrap.hidden = false;
     output.hidden       = true;
+    // Show loading state in dashboard Up Next while OCR is running
+    const upNextList = document.getElementById('dashboard-up-next');
+    if (upNextList) upNextList.innerHTML = window.States.loading('Scanning timetable...');
     setProgress(0, 'Reading file...');
 
     try {
@@ -201,8 +214,42 @@
       }
     }
     const clean = slots.filter(s => Object.values(s.slots).some(v => v));
-    if (!clean.length) return buildEmptyScaffold(detectedDays);
-    return { schedule: clean, days: detectedDays };
+    const finalSlots = clean.length ? clean : buildEmptyScaffold(detectedDays).schedule;
+    
+    // Convert to flat events
+    const flatEvents = [];
+    finalSlots.forEach(row => {
+      const parts = row.time.split('-');
+      const start = parseTimeTo24H(parts[0] || '09:00');
+      const end = parts.length > 1 ? parseTimeTo24H(parts[1]) : addHourTo24H(start);
+      for (const [day, subject] of Object.entries(row.slots)) {
+        if (subject) {
+          flatEvents.push({
+            id: 'tt_' + Math.random().toString(36).substr(2, 9),
+            subject, day, startTime: start, endTime: end, room: '', faculty: '', color: 'blue'
+          });
+        }
+      }
+    });
+    return { schedule: flatEvents, days: detectedDays };
+  }
+
+  function parseTimeTo24H(t) {
+    if (!t) return '09:00';
+    const match = t.match(/(\d{1,2})[:.](\d{2})\s*(AM|PM|am|pm)?/i);
+    if (!match) return '09:00';
+    let h = parseInt(match[1], 10);
+    const m = match[2];
+    const ampm = (match[3] || '').toUpperCase();
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return `${h.toString().padStart(2, '0')}:${m}`;
+  }
+
+  function addHourTo24H(time24) {
+    let [h, m] = time24.split(':').map(Number);
+    h = (h + 1) % 24;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   }
 
   function detectDays(lines) {
@@ -239,85 +286,215 @@
   /* ===== 7. GRID RENDERER ===== */
   function renderGrid() {
     gridHead.innerHTML = '';
-    const tr = document.createElement('tr');
-    const th0 = document.createElement('th'); th0.textContent = 'Time'; th0.className = 'tt-th-time'; tr.appendChild(th0);
-    for (const day of activeDays) { const th = document.createElement('th'); th.textContent = day; tr.appendChild(th); }
-    gridHead.appendChild(tr);
+    const trH = document.createElement('tr');
+    const th0 = document.createElement('th'); th0.textContent = 'Time'; th0.className = 'tt-th-time'; trH.appendChild(th0);
+    for (const day of activeDays) { const th = document.createElement('th'); th.textContent = day; trH.appendChild(th); }
+    gridHead.appendChild(trH);
+
     gridBody.innerHTML = '';
-    for (let i = 0; i < schedule.length; i++) gridBody.appendChild(buildRow(i));
-  }
 
-  function buildRow(ri) {
-    const row = schedule[ri];
-    const tr  = document.createElement('tr');
-    const tdT = document.createElement('td'); tdT.className = 'tt-td-time';
-    const inp = document.createElement('input'); inp.type = 'text'; inp.value = row.time;
-    inp.className = 'tt-time-input'; inp.setAttribute('aria-label','Time slot');
-    inp.addEventListener('change', () => { schedule[ri].time = inp.value.trim(); });
-    const del = document.createElement('button'); del.className = 'tt-del-row-btn icon-btn'; del.title = 'Remove row';
-    del.setAttribute('aria-label','Remove time slot'); del.innerHTML = '<i class="ph ph-trash"></i>';
-    del.addEventListener('click', () => { schedule.splice(ri,1); renderGrid(); });
-    tdT.appendChild(inp); tdT.appendChild(del); tr.appendChild(tdT);
-    for (const day of activeDays) {
-      const td = document.createElement('td'); td.className = 'tt-td-slot';
-      td.appendChild(buildChip(row.slots[day] || '', ri, day)); tr.appendChild(td);
+    // 1. Find all unique time blocks
+    const timeBlocks = new Set();
+    schedule.forEach(e => timeBlocks.add(`${e.startTime}-${e.endTime}`));
+    // Sort time blocks chronologically
+    const sortedBlocks = Array.from(timeBlocks).sort((a, b) => a.localeCompare(b));
+
+    if (sortedBlocks.length === 0) {
+      gridBody.innerHTML = `<tr><td colspan="${activeDays.length + 1}" style="text-align: center; padding: 2rem;">No classes scheduled. Click 'Add Time Slot' below.</td></tr>`;
+      return;
     }
-    return tr;
+
+    sortedBlocks.forEach(block => {
+      const [start, end] = block.split('-');
+      const tr = document.createElement('tr');
+      
+      const tdT = document.createElement('td'); 
+      tdT.className = 'tt-td-time';
+      tdT.innerHTML = `<div style="font-weight: 500;">${format12H(start)}</div><div style="font-size: 0.75rem; color: var(--text-secondary); opacity: 0.8;">${format12H(end)}</div>`;
+      tr.appendChild(tdT);
+
+      for (const day of activeDays) {
+        const td = document.createElement('td'); 
+        td.className = 'tt-td-slot';
+        
+        // Find events for this day and time block
+        const events = schedule.filter(e => e.day === day && e.startTime === start && e.endTime === end);
+        
+        if (events.length > 0) {
+          events.forEach(e => td.appendChild(buildEventChip(e)));
+        } else {
+          td.appendChild(buildEmptyChip(day, start, end));
+        }
+        tr.appendChild(td);
+      }
+      gridBody.appendChild(tr);
+    });
   }
 
-  function buildChip(text, ri, day) {
+  function format12H(time24) {
+    if (!time24) return '';
+    let [h, m] = time24.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${m.toString().padStart(2, '0')} ${ampm}`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div'); div.appendChild(document.createTextNode(str)); return div.innerHTML;
+  }
+
+  function buildEventChip(event) {
     const wrap = document.createElement('div');
-    wrap.className = text ? 'tt-chip' : 'tt-chip tt-chip-empty';
-    const span = document.createElement('span'); 
-    span.textContent = text || '+ Add'; 
-    wrap.appendChild(span);
-    
-    wrap.addEventListener('click', () => {
-      openModal(ri, day);
-    });
+    wrap.className = `tt-chip tt-chip-${event.color || 'blue'}`;
+    wrap.innerHTML = `
+      <div style="font-weight: 600; font-size: 0.85rem;">${escapeHtml(event.subject)}</div>
+      ${event.room ? `<div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;"><i class="ph ph-map-pin"></i> ${escapeHtml(event.room)}</div>` : ''}
+    `;
+    wrap.addEventListener('click', () => openModal(event.id));
     return wrap;
   }
 
-  function openModal(ri, day) {
-    modalRi.value = ri;
-    modalDay.value = day;
-    modalSubtitle.textContent = `${day} - ${schedule[ri].time}`;
-    modalSubject.value = schedule[ri].slots[day] || '';
+  function buildEmptyChip(day, start, end) {
+    const wrap = document.createElement('div');
+    wrap.className = 'tt-chip tt-chip-empty';
+    wrap.innerHTML = `<span>+ Add</span>`;
+    wrap.addEventListener('click', () => openModal(null, day, start, end));
+    return wrap;
+  }
+
+  /* ===== MODAL LOGIC ===== */
+  function openModal(id = null, day = 'Monday', start = '09:00', end = '10:00') {
+    Validate.clearAll(modalForm);
+    if (modalWarning) modalWarning.hidden = true;
+    
+    if (id) {
+      const e = schedule.find(x => x.id === id);
+      if (!e) return;
+      modalTitle.innerHTML = `<i class="ph-fill ph-pencil-simple" aria-hidden="true"></i> Edit Class Event`;
+      modalId.value = e.id;
+      modalSubject.value = e.subject;
+      modalDay.value = e.day;
+      modalStart.value = e.startTime;
+      modalEnd.value = e.endTime;
+      modalRoom.value = e.room || '';
+      modalFaculty.value = e.faculty || '';
+      setColor(e.color || 'blue');
+      if (modalDeleteBtn) modalDeleteBtn.hidden = false;
+      if (modalDuplicateBtn) modalDuplicateBtn.hidden = false;
+    } else {
+      modalTitle.innerHTML = `<i class="ph-fill ph-calendar-plus" aria-hidden="true"></i> Add Class Event`;
+      modalId.value = '';
+      modalSubject.value = '';
+      modalDay.value = day;
+      modalStart.value = start;
+      modalEnd.value = end;
+      modalRoom.value = '';
+      modalFaculty.value = '';
+      setColor('blue');
+      if (modalDeleteBtn) modalDeleteBtn.hidden = true;
+      if (modalDuplicateBtn) modalDuplicateBtn.hidden = true;
+    }
+    
     modalOverlay.classList.remove('hidden');
     modalSubject.focus();
   }
+
+  function setColor(color) {
+    modalColorVal.value = color;
+    modalColors.forEach(b => {
+      b.classList.toggle('active', b.dataset.color === color);
+      b.style.borderColor = b.dataset.color === color ? 'var(--text-primary)' : 'transparent';
+    });
+  }
+
+  modalColors.forEach(btn => btn.addEventListener('click', () => setColor(btn.dataset.color)));
 
   function closeModal() {
     modalOverlay.classList.add('hidden');
   }
 
   modalCancelBtn?.addEventListener('click', closeModal);
-  
-  modalSaveBtn?.addEventListener('click', () => {
-    const ri = parseInt(modalRi.value, 10);
+  modalOverlay?.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+  // Conflict Detection
+  function checkConflicts() {
+    const id = modalId.value;
     const day = modalDay.value;
-    schedule[ri].slots[day] = modalSubject.value.trim();
+    const start = modalStart.value;
+    const end = modalEnd.value;
+    
+    if (!start || !end || !modalWarning) return;
+
+    const overlap = schedule.find(e => {
+      if (e.id === id) return false;
+      if (e.day !== day) return false;
+      // Overlap logic: start1 < end2 AND end1 > start2
+      return (start < e.endTime) && (end > e.startTime);
+    });
+
+    if (overlap) {
+      modalWarningText.innerHTML = `<strong>Conflict:</strong> Overlaps with ${escapeHtml(overlap.subject)} (${format12H(overlap.startTime)} - ${format12H(overlap.endTime)}).`;
+      modalWarning.hidden = false;
+    } else {
+      modalWarning.hidden = true;
+    }
+  }
+
+  [modalDay, modalStart, modalEnd].forEach(el => el?.addEventListener('change', checkConflicts));
+  modalSubject.addEventListener('input', () => Validate.clearError(modalSubject));
+
+  modalForm?.addEventListener('submit', () => {
+    const id = modalId.value;
+    const subject = modalSubject.value.trim();
+    const day = modalDay.value;
+    const startTime = modalStart.value;
+    const endTime = modalEnd.value;
+    
+    if (startTime >= endTime) {
+      Validate.setError(modalEnd, 'End time must be after start time.');
+      return;
+    }
+
+    const eventData = {
+      subject, day, startTime, endTime,
+      room: modalRoom.value.trim(),
+      faculty: modalFaculty.value.trim(),
+      color: modalColorVal.value
+    };
+
+    if (id) {
+      const idx = schedule.findIndex(e => e.id === id);
+      if (idx > -1) schedule[idx] = { ...schedule[idx], ...eventData };
+    } else {
+      eventData.id = 'tt_' + Math.random().toString(36).substr(2, 9);
+      schedule.push(eventData);
+    }
+
     closeModal();
     renderGrid();
   });
 
   modalDeleteBtn?.addEventListener('click', () => {
-    const ri = parseInt(modalRi.value, 10);
-    const day = modalDay.value;
-    delete schedule[ri].slots[day];
+    schedule = schedule.filter(e => e.id !== modalId.value);
     closeModal();
     renderGrid();
   });
-  
-  modalOverlay?.addEventListener('click', e => {
-    if (e.target === modalOverlay) closeModal();
+
+  modalDuplicateBtn?.addEventListener('click', () => {
+    const e = schedule.find(x => x.id === modalId.value);
+    if (!e) return;
+    const copy = { ...e, id: 'tt_' + Math.random().toString(36).substr(2, 9) };
+    schedule.push(copy);
+    closeModal();
+    renderGrid();
+    if (window.showToast) window.showToast('Class duplicated! You can now click it to edit the day or time.');
   });
 
   /* ===== 8. ADD / SAVE / LOAD ===== */
   function addTimeSlot() {
-    schedule.push({ time: 'HH:MM - HH:MM', slots: {} }); renderGrid();
-    gridBody.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    openModal(null, 'Monday', '09:00', '10:00');
   }
+
   function saveSchedule() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ schedule, activeDays }));
     const orig = saveBtn.innerHTML;
@@ -326,13 +503,36 @@
     setTimeout(() => { saveBtn.innerHTML = orig; saveBtn.classList.remove('btn-saved'); }, 2000);
     updateDashboard();
   }
+
   function loadSaved() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const { schedule: s, activeDays: d } = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        const { schedule: s, activeDays: d } = parsed;
         if (Array.isArray(s) && s.length) {
-          schedule = s; activeDays = d || [...DAYS];
+          // Migration from old array-of-rows format to flat events format
+          if (s[0].slots) {
+            console.log('Migrating old schedule format...');
+            const flatEvents = [];
+            s.forEach(row => {
+              const parts = row.time.split('-');
+              const start = parseTimeTo24H(parts[0] || '09:00');
+              const end = parts.length > 1 ? parseTimeTo24H(parts[1]) : addHourTo24H(start);
+              for (const [day, subject] of Object.entries(row.slots)) {
+                if (subject) {
+                  flatEvents.push({
+                    id: 'tt_' + Math.random().toString(36).substr(2, 9),
+                    subject, day, startTime: start, endTime: end, room: '', faculty: '', color: 'blue'
+                  });
+                }
+              }
+            });
+            schedule = flatEvents;
+          } else {
+            schedule = s;
+          }
+          activeDays = d || [...DAYS];
           uploadZone.hidden = true; renderGrid(); output.hidden = false;
         }
       }
@@ -345,72 +545,66 @@
     if (!list) return;
 
     if (!schedule || schedule.length === 0) {
-      list.innerHTML = `<li class="mock-list-item empty-state"><i class="ph ph-calendar-slash"></i> No timetable saved</li>`;
+      list.innerHTML = window.States.empty(
+        'ph ph-calendar-blank',
+        'No timetable yet',
+        'Upload your timetable to see upcoming classes here.',
+        `<button class="btn btn-secondary" onclick="document.querySelector('[data-target=timetable]').click()">
+           <i class="ph ph-arrow-right" aria-hidden="true"></i> Go to Timetable
+         </button>`
+      );
       return;
     }
 
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
 
-    function parseTime(t) {
-      const match = t.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-      if (!match) return 0;
-      let h = parseInt(match[1], 10);
-      let m = parseInt(match[2], 10);
-      if (match[3].toUpperCase() === 'PM' && h !== 12) h += 12;
-      if (match[3].toUpperCase() === 'AM' && h === 12) h = 0;
-      return h * 60 + m;
-    }
-
     let upcoming = [];
     let lookaheadDays = 0;
     
-    // Scan up to 7 days ahead
     while (lookaheadDays < 7) {
       const targetDate = new Date();
       targetDate.setDate(now.getDate() + lookaheadDays);
       const targetDayStr = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
 
-      for (const row of schedule) {
-        if (!row.slots[targetDayStr]) continue;
-        const parts = row.time.split('-');
-        if (parts.length > 0) {
-          const startMins = parseTime(parts[0].trim());
-          let endMins = currentMins + 1;
-          if (parts.length > 1) {
-            endMins = parseTime(parts[1].trim());
-          } else {
-            endMins = startMins + 60;
-          }
+      const dayEvents = schedule.filter(e => e.day === targetDayStr);
+      
+      dayEvents.forEach(e => {
+        const [h, m] = e.startTime.split(':').map(Number);
+        const startMins = h * 60 + m;
+        const [eh, em] = e.endTime.split(':').map(Number);
+        const endMins = eh * 60 + em;
 
-          if (lookaheadDays === 0) {
-            if (endMins > currentMins) {
-              upcoming.push({ time: row.time, subject: row.slots[targetDayStr], startMins, dayLabel: "Today" });
-            }
-          } else {
-            upcoming.push({ time: row.time, subject: row.slots[targetDayStr], startMins, dayLabel: lookaheadDays === 1 ? "Tomorrow" : targetDayStr });
+        if (lookaheadDays === 0) {
+          if (endMins > currentMins) {
+            upcoming.push({ ...e, startMins, dayLabel: "Today" });
           }
+        } else {
+          upcoming.push({ ...e, startMins, dayLabel: lookaheadDays === 1 ? "Tomorrow" : targetDayStr });
         }
-      }
+      });
 
-      if (upcoming.length > 0) {
-        break; // Stop looking ahead once we found classes for a day
-      }
+      if (upcoming.length > 0) break;
       lookaheadDays++;
     }
 
     upcoming.sort((a, b) => a.startMins - b.startMins);
 
     if (upcoming.length === 0) {
-      list.innerHTML = `<li class="mock-list-item empty-state"><i class="ph ph-check-circle"></i> No upcoming classes</li>`;
+      list.innerHTML = window.States.empty(
+        'ph ph-sun-horizon',
+        'No classes today',
+        'Enjoy your free time! Check back tomorrow.'
+      );
     } else {
       list.innerHTML = upcoming.slice(0, 3).map(u => `
         <li class="mock-list-item">
           <div>
-            <strong>${u.subject}</strong> 
+            <strong>${escapeHtml(u.subject)}</strong>
             <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 6px;">(${u.dayLabel})</span>
+            ${u.room ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"><i class="ph ph-map-pin"></i> ${escapeHtml(u.room)}</div>` : ''}
           </div>
-          <span class="badge badge-blue">${u.time}</span>
+          <span class="badge badge-${u.color || 'blue'}">${format12H(u.startTime)} - ${format12H(u.endTime)}</span>
         </li>
       `).join('');
     }
