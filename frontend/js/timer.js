@@ -87,27 +87,42 @@
   }
 
   function renderHistory() {
-    const history = loadHistory();
     if (!historyList) return;
-    if (history.length === 0) {
-      historyList.innerHTML = `<li class="mock-list-item empty-state"><i class="ph ph-list-magnifying-glass"></i> No sessions recorded yet</li>`;
-      return;
+    try {
+      const history = loadHistory();
+      if (history.length === 0) {
+        historyList.innerHTML = window.States.empty(
+          'ph ph-clock-countdown',
+          'No sessions recorded yet',
+          'Complete your first focus session to see it here.'
+        );
+        return;
+      }
+      historyList.innerHTML = history.slice().reverse().map(h => {
+        const date = new Date(h.date);
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        return `
+          <li class="mock-list-item" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
+            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 600;">${h.task ? escapeHtml(h.task) : 'Focus Session'}</span>
+              <span class="badge badge-blue">${h.duration} min</span>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="ph ph-calendar"></i> ${dateStr}, ${timeStr}</span>
+          </li>
+        `;
+      }).join('');
+    } catch (e) {
+      console.error('Session history render error:', e);
+      historyList.innerHTML = window.States.error(
+        "Couldn't load session history.",
+        'window._timerHistoryRender()'
+      );
     }
-    historyList.innerHTML = history.slice().reverse().map(h => {
-      const date = new Date(h.date);
-      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-      return `
-        <li class="mock-list-item" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-          <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 600;">${h.task ? escapeHtml(h.task) : 'Focus Session'}</span>
-            <span class="badge badge-blue">${h.duration} min</span>
-          </div>
-          <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="ph ph-calendar"></i> ${dateStr}, ${timeStr}</span>
-        </li>
-      `;
-    }).join('');
   }
+
+  // Expose for retry button
+  window._timerHistoryRender = renderHistory;
 
   function escapeHtml(str) {
     const div = document.createElement('div');
