@@ -13,11 +13,14 @@
 </head>
 <body>
 
+  <!-- Skip to main content (accessibility) -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
   <!-- Mobile sidebar overlay -->
   <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
 
   <!-- Sidebar -->
-  <aside class="sidebar">
+  <aside class="sidebar" role="navigation" aria-label="Application sidebar">
     <div class="logo">
       <i class="ph-fill ph-graduation-cap" aria-hidden="true"></i>
       <span>Scholaris</span>
@@ -57,10 +60,30 @@
         </li>
       </ul>
     </nav>
+    <div class="sidebar-footer" style="margin-top: auto; padding: 20px 0; border-top: 1px solid var(--border-color);">
+      <ul class="nav-links" style="flex-direction: column; gap: 8px;">
+        <li class="nav-item">
+          <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
+            <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
+          </a>
+        </li>
+        <li class="nav-item">
+          <label class="nav-link" tabindex="0" aria-label="Import data from JSON file" style="color: var(--text-secondary); font-size: 0.85rem; cursor: pointer;">
+            <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
+            <input type="file" id="import-data-file" accept=".json" hidden>
+          </label>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
+            <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
+          </a>
+        </li>
+      </ul>
+    </div>
   </aside>
 
   <!-- Main Content Area -->
-  <main class="main-content">
+  <main class="main-content" id="main-content">
     
     <!-- Topbar -->
     <header class="topbar">
@@ -68,7 +91,7 @@
       <button class="hamburger-btn" id="hamburger-btn" title="Toggle Sidebar" aria-label="Toggle sidebar">
         <i class="ph ph-list" aria-hidden="true"></i>
       </button>
-      <form class="search-container" role="search" onsubmit="event.preventDefault();">
+      <form class="search-container" role="search" id="search-form">
         <i class="ph ph-magnifying-glass search-icon" aria-hidden="true"></i>
         <input type="text" placeholder="Search resources, notices..." aria-label="Search">
       </form>
@@ -182,7 +205,7 @@
         </header>
 
         <article class="card">
-          <form class="assignment-inputs" id="assignment-form" onsubmit="event.preventDefault();">
+          <form class="assignment-inputs" id="assignment-form">
             <input type="text" id="assignment-title" class="form-control" placeholder="Assignment title..." aria-label="Assignment title" required>
             <input type="text" id="assignment-date" class="form-control" placeholder="Due date (optional)" aria-label="Due date">
 
@@ -353,7 +376,7 @@
         </header>
 
         <article class="card">
-          <form class="attendance-grid" id="attendance-form" onsubmit="event.preventDefault();">
+          <form class="attendance-grid" id="attendance-form">
             <div>
               <label class="form-label" for="att-date">Date</label>
               <input type="text" id="att-date" class="form-control" placeholder="Select date..." aria-label="Attendance date">
@@ -424,15 +447,16 @@
   <script src="js/timer.js"></script>
   <script src="js/timetable.js"></script>
   <script src="js/attendance.js"></script>
+  <script src="js/accessibility.js"></script>
 
   <!-- Timetable Edit Modal (Rich Form) -->
   <div id="tt-modal-overlay" class="modal-overlay hidden" aria-hidden="true">
-    <dialog class="modal-content card" id="tt-modal" style="max-width: 500px;" open>
+    <dialog class="modal-content card tt-modal-dialog" id="tt-modal" open>
       <header>
         <h2 class="card-title" id="tt-modal-title"><i class="ph-fill ph-calendar-plus" aria-hidden="true"></i> Edit Class Event</h2>
       </header>
       
-      <form id="tt-modal-form" onsubmit="event.preventDefault();">
+      <form id="tt-modal-form">
         <input type="hidden" id="tt-modal-id"> <!-- Hidden ID to track edit vs new -->
         
         <!-- Subject -->
@@ -442,7 +466,7 @@
         </div>
 
         <!-- Day and Times -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;" class="mb-1">
+        <div class="tt-modal-grid-3 mb-1">
           <div class="form-group">
             <label class="form-label" for="tt-modal-day">Day</label>
             <select id="tt-modal-day" class="form-control" required>
@@ -466,13 +490,13 @@
         </div>
 
         <!-- Conflict Warning Placeholder -->
-        <div id="tt-modal-conflict-warning" hidden style="margin-bottom: 1rem; padding: 0.5rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 6px; color: #ef4444; font-size: 0.85rem; display: flex; gap: 6px; align-items: flex-start;">
-          <i class="ph-fill ph-warning-circle" style="font-size: 1.1rem; margin-top: 1px;"></i>
+        <div id="tt-modal-conflict-warning" class="tt-modal-conflict-warning" hidden>
+          <i class="ph-fill ph-warning-circle tt-modal-conflict-icon"></i>
           <span id="tt-modal-conflict-text">Conflict warning text</span>
         </div>
 
         <!-- Room and Faculty -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" class="mb-1">
+        <div class="tt-modal-grid-2 mb-1">
           <div class="form-group">
             <label class="form-label" for="tt-modal-room">Room (Optional)</label>
             <input type="text" id="tt-modal-room" class="form-control" placeholder="e.g. Lab 3">
@@ -486,28 +510,28 @@
         <!-- Color Theme Selector -->
         <div class="form-group mb-1-5">
           <label class="form-label">Color Theme</label>
-          <div class="tt-color-picker" id="tt-modal-colors" style="display: flex; gap: 0.5rem;">
+          <div class="tt-color-picker" id="tt-modal-colors">
             <!-- Blue -->
-            <button type="button" class="color-btn active" data-color="blue" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #3b82f6; cursor: pointer;"></button>
+            <button type="button" class="color-btn active" data-color="blue"></button>
             <!-- Green -->
-            <button type="button" class="color-btn" data-color="green" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #10b981; cursor: pointer;"></button>
+            <button type="button" class="color-btn" data-color="green"></button>
             <!-- Purple -->
-            <button type="button" class="color-btn" data-color="purple" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #8b5cf6; cursor: pointer;"></button>
+            <button type="button" class="color-btn" data-color="purple"></button>
             <!-- Orange -->
-            <button type="button" class="color-btn" data-color="orange" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #f97316; cursor: pointer;"></button>
+            <button type="button" class="color-btn" data-color="orange"></button>
             <!-- Pink -->
-            <button type="button" class="color-btn" data-color="pink" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #ec4899; cursor: pointer;"></button>
+            <button type="button" class="color-btn" data-color="pink"></button>
             <!-- Yellow/Gold -->
-            <button type="button" class="color-btn" data-color="yellow" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; background: #eab308; cursor: pointer;"></button>
+            <button type="button" class="color-btn" data-color="yellow"></button>
           </div>
           <input type="hidden" id="tt-modal-color-value" value="blue">
         </div>
 
-        <footer style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-          <div style="display: flex; gap: 0.5rem;">
+        <footer class="tt-modal-footer">
+          <div class="tt-modal-footer-left">
             <button type="button" class="btn btn-secondary text-red" id="tt-modal-delete" title="Delete class"><i class="ph ph-trash" aria-hidden="true"></i> Delete</button>
           </div>
-          <div style="display: flex; gap: 0.5rem;">
+          <div class="tt-modal-footer-right">
             <button type="button" class="btn btn-secondary" id="tt-modal-duplicate" title="Duplicate class"><i class="ph ph-copy" aria-hidden="true"></i> Duplicate</button>
             <button type="button" class="btn btn-secondary" id="tt-modal-cancel">Cancel</button>
             <button type="submit" class="btn" id="tt-modal-save">Save Class</button>
