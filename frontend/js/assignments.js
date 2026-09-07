@@ -155,10 +155,14 @@
           'ph ph-list-checks',
           'No assignments yet',
           'Add your first assignment to get started.',
-          `<button class="btn" onclick="document.getElementById('assignment-title').focus()">
+          `<button class="btn" id="assignments-empty-cta">
              <i class="ph ph-plus" aria-hidden="true"></i> Add Assignment
            </button>`
         );
+        // Wire up CTA
+        document.getElementById('assignments-empty-cta')?.addEventListener('click', () => {
+          document.getElementById('assignment-title')?.focus();
+        });
         if (submittedSection) submittedSection.style.display = 'none';
         return;
       }
@@ -311,10 +315,21 @@
         window.showToast('Task marked as completed!');
       }
     } else if (btn.dataset.action === 'delete') {
-      tasks.splice(i, 1);
+      const deletedTask = tasks.splice(i, 1)[0];
       save(tasks);
       render();
-      if (window.showToast) window.showToast('Task deleted');
+      if (window.showToast) {
+        window.showToast('Task deleted', 'success', {
+          text: 'Undo',
+          onClick: () => {
+            const currentTasks = load();
+            currentTasks.splice(i, 0, deletedTask);
+            save(currentTasks);
+            render();
+            window.showToast('Task restored');
+          }
+        });
+      }
     } else if (btn.dataset.action === 'submit') {
       tasks[i].submitted = !tasks[i].submitted;
       save(tasks);
@@ -402,8 +417,10 @@
     updateAutoPriorityPreview();
   });
 
-  addBtn?.addEventListener('click', addTask);
-  titleInput?.addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+  document.getElementById('assignment-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    addTask();
+  });
   
   if (filterStatus) filterStatus.addEventListener('change', render);
   if (filterPriority) filterPriority.addEventListener('change', render);
