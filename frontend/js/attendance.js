@@ -188,8 +188,19 @@
     const i = parseInt(btn.dataset.index, 10);
     const records = load();
     if (btn.dataset.action === 'delete') {
-      records.splice(i, 1);
+      const deletedRecord = records.splice(i, 1)[0];
       save(records);
+      if (window.showToast) {
+        window.showToast('Attendance record deleted', 'success', {
+          text: 'Undo',
+          onClick: () => {
+            const currentRecords = load();
+            currentRecords.splice(i, 0, deletedRecord);
+            save(currentRecords);
+            window.showToast('Record restored');
+          }
+        });
+      }
     }
   });
 
@@ -268,8 +279,10 @@
   dateInput?.addEventListener('keydown', e => {
     if (e.key === 'Enter') courseInput.focus();
   });
-  addBtn?.addEventListener('click', addAttendance);
-
+  document.getElementById('attendance-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    addAttendance();
+  });
   render();
   updateStats();
 })();
