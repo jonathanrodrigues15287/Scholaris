@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    timetable.css — Upload zone, OCR progress, action bar,
    weekly grid, chips, and modals
    ============================================================ */
@@ -386,3 +386,81 @@
 [data-theme='dark'] .tt-chip-orange { background: rgba(249, 115, 22, 0.15); }
 [data-theme='dark'] .tt-chip-pink { background: rgba(236, 72, 153, 0.15); }
 [data-theme='dark'] .tt-chip-yellow { background: rgba(234, 179, 8, 0.15); }
+
+/* ── Modal Grid & Layouts ── */
+.tt-modal-dialog {
+  max-width: 500px;
+}
+
+.tt-modal-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.tt-modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.tt-modal-conflict-warning {
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.tt-modal-conflict-icon {
+  font-size: 1.1rem;
+  margin-top: 1px;
+}
+
+.tt-color-picker {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tt-color-picker .color-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.tt-color-picker .color-btn:hover {
+  transform: scale(1.1);
+}
+
+.tt-color-picker .color-btn.active {
+  box-shadow: 0 0 0 2px var(--bg-color), 0 0 0 4px var(--accent-color);
+}
+
+.tt-color-picker .color-btn[data-color="blue"] { background: #3b82f6; }
+.tt-color-picker .color-btn[data-color="green"] { background: #10b981; }
+.tt-color-picker .color-btn[data-color="purple"] { background: #8b5cf6; }
+.tt-color-picker .color-btn[data-color="orange"] { background: #f97316; }
+.tt-color-picker .color-btn[data-color="pink"] { background: #ec4899; }
+.tt-color-picker .color-btn[data-color="yellow"] { background: #eab308; }
+
+.tt-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
+.tt-modal-footer-left,
+.tt-modal-footer-right {
+  display: flex;
+  gap: 0.5rem;
+}
