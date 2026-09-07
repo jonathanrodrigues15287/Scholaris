@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    responsive.css — All media queries and mobile overrides
    ============================================================ */
 
@@ -23,6 +23,7 @@
     top: 0;
     transform: translateX(-100%);
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+    overflow-y: auto;
   }
 
   .logo {
@@ -41,6 +42,10 @@
     margin-bottom: 8px;
   }
 
+  .nav-link {
+    transform: none !important;
+  }
+
   body.sidebar-open .sidebar {
     transform: translateX(0);
   }
@@ -51,16 +56,22 @@
   }
 
   .topbar {
-    height: 72px;
+    height: 64px;
     padding: 0 16px;
     justify-content: space-between;
     background-color: var(--card-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 50;
   }
 
   .search-container {
     width: auto;
     flex: 1;
+    max-width: 280px;
   }
 
   .content-wrapper {
@@ -69,6 +80,15 @@
 
   .section-title {
     font-size: 1.4rem;
+  }
+
+  .card {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .card:hover {
+    transform: none;
   }
 
   .dashboard-grid {
@@ -89,10 +109,40 @@
 
   /* Timetable */
   .tt-upload-zone { padding: 40px 20px; }
-  .tt-action-bar  { flex-direction: column; align-items: flex-start; }
-  .tt-th-time     { min-width: 140px; }
-  .tt-time-input  { width: 110px; }
-  .tt-td-slot     { min-width: 110px; }
+  .tt-action-bar  { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .tt-th-time     { min-width: 120px; }
+  .tt-time-input  { width: 100px; }
+  .tt-td-slot     { min-width: 100px; }
+  .tt-grid-scroll { -webkit-overflow-scrolling: touch; }
+
+  /* Modals — full width on mobile */
+  .modal-content {
+    width: 95%;
+    max-width: 100% !important;
+    border-radius: 16px;
+    margin: 0 12px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .tt-modal-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .tt-modal-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .tt-modal-footer {
+    flex-direction: column-reverse;
+    gap: 0.75rem;
+  }
+
+  .tt-modal-footer-left,
+  .tt-modal-footer-right {
+    width: 100%;
+    justify-content: center;
+  }
 
   /* Attendance */
   .attendance-grid {
@@ -102,10 +152,18 @@
   /* Form grids */
   .form-grid { grid-template-columns: 1fr; }
   .timer-settings { flex-direction: column; gap: 1rem; }
+
+  /* Priority control */
+  .priority-control {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /* ── Small Mobile (<=480px) ── */
 @media (max-width: 480px) {
+  .section-title { font-size: 1.25rem; }
+
   /* Assignments */
   .assignment-inputs {
     flex-direction: column;
@@ -113,6 +171,14 @@
 
   .assignment-inputs .form-control,
   .assignment-inputs .btn {
+    width: 100%;
+  }
+
+  .assignment-filters-wrap {
+    flex-direction: column;
+  }
+
+  .filter-select {
     width: 100%;
   }
 
@@ -136,4 +202,73 @@
   .attendance-grid {
     grid-template-columns: 1fr;
   }
+
+  /* Toast */
+  .toast-container {
+    bottom: 12px;
+    right: 12px;
+    left: 12px;
+  }
+
+  .toast {
+    max-width: 100%;
+  }
+}
+
+/* ============================================================
+   Accessibility — Focus styles, reduced motion
+   ============================================================ */
+
+/* Global keyboard focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.check-btn:focus-visible,
+.nav-link:focus-visible,
+.color-btn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 3px;
+}
+
+/* Skip-to-content link for screen readers / keyboard */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--accent-color);
+  color: #fff;
+  border-radius: 0 0 8px 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Reduced motion — respect OS preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  body { animation: none; }
+  .tt-upload-icon { animation: none; }
 }
