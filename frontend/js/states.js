@@ -37,11 +37,11 @@ window.States = (function () {
   /**
    * Renders an error-state block.
    * @param {string} message     — Error message to display
-   * @param {string} [onRetry]   — JS expression string to call on retry click (e.g. 'render()')
+   * @param {string} [retryId]   — Optional ID for the retry button to wire up via addEventListener
    */
-  function error(message = "Something went wrong.", onRetry = '') {
-    const retryBtn = onRetry
-      ? `<button class="btn btn-secondary state-retry-btn" onclick="${onRetry}">
+  function error(message = "Something went wrong.", retryId = '') {
+    const retryBtn = retryId
+      ? `<button class="btn btn-secondary state-retry-btn" id="${retryId}">
            <i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i> Try Again
          </button>`
       : '';
@@ -55,3 +55,27 @@ window.States = (function () {
 
   return { empty, loading, error };
 })();
+
+// Unsaved changes protection
+window.addEventListener('beforeunload', (e) => {
+  const assignTitle = document.getElementById('assignment-title');
+  const ttSubject = document.getElementById('tt-modal-subject');
+  const ttModalOverlay = document.getElementById('tt-modal-overlay');
+  
+  let hasUnsaved = false;
+
+  // Assignment form has unsaved text
+  if (assignTitle && assignTitle.value.trim() !== '') {
+    hasUnsaved = true;
+  }
+  
+  // Timetable modal is open and has text
+  if (ttModalOverlay && !ttModalOverlay.classList.contains('hidden') && ttSubject && ttSubject.value.trim() !== '') {
+    hasUnsaved = true;
+  }
+
+  if (hasUnsaved) {
+    e.preventDefault();
+    e.returnValue = ''; // Trigger standard browser confirmation dialog
+  }
+});
