@@ -169,18 +169,51 @@
     return card;
   }
 
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
   function renderSubjectRow(subject) {
     const div = document.createElement('div');
     div.className = 'cgpa-row';
     div.dataset.id = subject.id;
     div.innerHTML = `
-      <input type="text" class="form-control subj-name" placeholder="e.g. Maths" value="${subject.name}">
-      <input type="number" class="form-control subj-credits" placeholder="Credits" min="1" max="10" value="${subject.credits}">
+      <input type="text" class="form-control subj-name" placeholder="e.g. Maths" value="${escapeHtml(subject.name)}">
+      <input type="number" class="form-control subj-credits" placeholder="Credits" min="0.5" max="10" step="0.5" value="${subject.credits}">
       <input type="number" class="form-control subj-grade" placeholder="Grade pts" min="0" max="10" step="0.1" value="${subject.grade}">
       <button class="icon-btn delete-btn remove-row-btn" title="Remove subject">
         <i class="ph ph-trash"></i>
       </button>
     `;
+
+    const creditsInput = div.querySelector('.subj-credits');
+    const gradeInput = div.querySelector('.subj-grade');
+
+    function validateRow() {
+      let rowValid = true;
+
+      // Validate credits
+      const c = parseFloat(creditsInput.value);
+      if (creditsInput.value !== '' && (isNaN(c) || c <= 0)) {
+        Validate.setError(creditsInput, 'Credits must be > 0.');
+        rowValid = false;
+      } else {
+        Validate.clearError(creditsInput);
+      }
+
+      // Validate grade points
+      const g = parseFloat(gradeInput.value);
+      if (gradeInput.value !== '' && (isNaN(g) || g < 0 || g > 10)) {
+        Validate.setError(gradeInput, 'Grade must be 0 – 10.');
+        rowValid = false;
+      } else {
+        Validate.clearError(gradeInput);
+      }
+
+      return rowValid;
+    }
 
     div.querySelector('.remove-row-btn').addEventListener('click', () => {
       div.remove();
@@ -188,7 +221,10 @@
     });
 
     div.querySelectorAll('input').forEach(inp => {
-      inp.addEventListener('input', updateStateAndRender);
+      inp.addEventListener('input', () => {
+        validateRow();
+        updateStateAndRender();
+      });
     });
 
     return div;
@@ -196,12 +232,49 @@
 
   function renderAll() {
     semestersContainer.innerHTML = '';
-    const semesters = load();
-    semesters.forEach((sem, index) => {
-      semestersContainer.appendChild(renderSemester(sem, index));
-    });
-    calculateAndDisplay(semesters);
+    try {
+      const semesters = load();
+
+      if (semesters.length === 0) {
+        const ul = document.createElement('ul');
+        ul.className = 'mock-list';
+        ul.innerHTML = window.States.empty(
+          'ph ph-calculator',
+          'No semesters added yet',
+          'Add your first semester to start calculating your SGPA and CGPA.',
+          `<button class="btn" id="cgpa-empty-add-btn">
+             <i class="ph ph-plus" aria-hidden="true"></i> Add Semester
+           </button>`
+        );
+        semestersContainer.appendChild(ul);
+        // Wire up the empty-state add button
+        document.getElementById('cgpa-empty-add-btn')?.addEventListener('click', () => addSemesterBtn?.click());
+        if (overallCgpaResult) overallCgpaResult.innerHTML = '—';
+        return;
+      }
+
+      semesters.forEach((sem, index) => {
+        semestersContainer.appendChild(renderSemester(sem, index));
+      });
+      calculateAndDisplay(semesters);
+
+    } catch (e) {
+      console.error('CGPA renderAll error:', e);
+      semestersContainer.innerHTML = `
+        <div class="cgpa-empty-state">
+          <ul class="mock-list">
+            ${window.States.error(
+              "Couldn't load your CGPA data.",
+              'cgpa-retry-btn'
+            )}
+          </ul>
+        </div>`;
+      document.getElementById('cgpa-retry-btn')?.addEventListener('click', renderAll);
+    }
   }
+
+  // Expose for retry button
+  window._cgpaRenderAll = renderAll;
 
   addSemesterBtn?.addEventListener('click', () => {
     const state = getState();
