@@ -443,7 +443,8 @@
   [modalDay, modalStart, modalEnd].forEach(el => el?.addEventListener('change', checkConflicts));
   modalSubject.addEventListener('input', () => Validate.clearError(modalSubject));
 
-  modalForm?.addEventListener('submit', () => {
+  modalForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
     const id = modalId.value;
     const subject = modalSubject.value.trim();
     const day = modalDay.value;
@@ -475,9 +476,21 @@
   });
 
   modalDeleteBtn?.addEventListener('click', () => {
-    schedule = schedule.filter(e => e.id !== modalId.value);
+    const classId = modalId.value;
+    const deletedClass = schedule.find(e => e.id === classId);
+    schedule = schedule.filter(e => e.id !== classId);
     closeModal();
     renderGrid();
+    if (window.showToast && deletedClass) {
+      window.showToast('Class deleted', 'success', {
+        text: 'Undo',
+        onClick: () => {
+          schedule.push(deletedClass);
+          renderGrid();
+          window.showToast('Class restored');
+        }
+      });
+    }
   });
 
   modalDuplicateBtn?.addEventListener('click', () => {
