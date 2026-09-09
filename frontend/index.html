@@ -99,6 +99,14 @@
         <!-- Icon set by theme.js at runtime -->
         <i class="ph ph-sun" aria-hidden="true"></i>
       </button>
+      <div class="api-auth" id="api-auth" aria-label="Backend account controls">
+        <span class="api-auth-status" id="api-auth-status">Offline mode</span>
+        <input class="api-auth-input" id="api-auth-email" type="email" placeholder="Email" aria-label="Account email">
+        <input class="api-auth-input" id="api-auth-password" type="password" placeholder="Password" aria-label="Account password">
+        <button class="btn btn-secondary api-auth-btn" id="api-login-btn" type="button">Login</button>
+        <button class="btn api-auth-btn" id="api-register-btn" type="button">Register</button>
+        <button class="btn btn-secondary api-auth-btn" id="api-logout-btn" type="button" hidden>Logout</button>
+      </div>
     </header>
 
     <!-- Content Sections -->
@@ -438,6 +446,7 @@
   </main>
 
   <script src="js/validation.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/states.js"></script>
   <script src="js/toast.js"></script>
   <script src="js/theme.js"></script>
