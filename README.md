@@ -36,6 +36,10 @@ Scholaris/
 │       ├── timetable.js  # Timetable rendering and OCR
 │       ├── toast.js      # Toast notification system
 │       └── validation.js # Input validation helpers
+├── backend/
+│   ├── app/                 # FastAPI application and layered backend code
+│   ├── requirements.txt
+│   └── tests/               # Backend API tests
 └── README.md
 ```
 
@@ -63,4 +67,37 @@ Scholaris/
 ## Privacy
 
 Scholaris does not include a server or account system. Application data is stored locally in the browser. Timetable OCR runs in the browser after the required library is loaded from its CDN, and uploaded timetable files are not sent to a Scholaris backend.
+
+## Backend Development
+
+The first backend vertical slice is available under `backend/` and provides:
+
+- `POST /auth/register` and `POST /auth/login` with JWT authentication
+- Authenticated course creation and listing through `/courses`
+- Authenticated assignment creation, listing, and status updates through `/assignments`
+- SQLAlchemy models for users, courses, and assignments
+
+The default database is PostgreSQL:
+
+```text
+DATABASE_URL=postgresql+psycopg2://scholaris:scholaris@localhost:5432/scholaris
+JWT_SECRET_KEY=replace-this-value
+```
+
+From the repository root, install the backend dependencies and run the API with:
+
+```powershell
+python -m pip install -r backend/requirements.txt
+$env:PYTHONPATH = "backend"
+uvicorn app.main:app --reload --app-dir backend
+```
+
+The vertical slice test uses SQLite, so it does not require PostgreSQL:
+
+```powershell
+$env:PYTHONPATH = "backend"
+pytest backend/tests/test_vertical_slice.py -q
+```
+
+When the API is running at `http://localhost:8000`, the frontend shows Login and Register controls in the top bar. After connecting an account, assignments are fetched from the API and new, completed, submitted, or deleted assignments are synchronized there. Without a connection, the existing `localStorage` behavior remains available.
 
