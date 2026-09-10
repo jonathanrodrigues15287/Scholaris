@@ -79,8 +79,8 @@
     e.target.value = ''; // Reset input
   });
 
-  clearBtn?.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear ALL your Scholaris data? This cannot be undone.')) {
+  clearBtn?.addEventListener('click', async () => {
+    if (await window.confirmAction('Clear all locally cached Scholaris data? This cannot be undone.', { title: 'Clear local data', confirmLabel: 'Clear data', danger: true })) {
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
