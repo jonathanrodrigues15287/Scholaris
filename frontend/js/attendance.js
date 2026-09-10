@@ -11,6 +11,7 @@
   const absentCount = document.getElementById('att-absent-count');
   const holidayCount = document.getElementById('att-holiday-count');
   const examCount = document.getElementById('att-exam-count');
+  let remoteRecords = null;
 
   let datePicker = null;
   if (typeof flatpickr !== 'undefined' && dateInput) {
@@ -25,7 +26,7 @@
   }
 
   function load() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return remoteRecords || JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   }
 
   function save(records) {
@@ -38,6 +39,13 @@
     courseInput.innerHTML = '';
     if (!dateStr) {
       courseInput.innerHTML = '<option value="">Select date first...</option>';
+      return;
+    }
+
+    if (window.ScholarisApi?.isAuthenticated()) {
+      window.ScholarisApi.getCourses().then(courses => {
+        courseInput.innerHTML = '<option value="">Select course...</option>' + courses.map(course => `<option value="${course.id}">${escapeHtml(course.name)}</option>`).join('');
+      }).catch(() => {});
       return;
     }
 
@@ -182,13 +190,27 @@
     examCount.textContent = stats.exam;
   }
 
-  list.addEventListener('click', e => {
+  async function syncFromBackend() {
+    if (!window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const [records, courses] = await Promise.all([window.ScholarisApi.getAttendance(), window.ScholarisApi.getCourses()]);
+      const names = new Map(courses.map(course => [course.id, course.name]));
+      remoteRecords = records.map(record => ({ ...record, date: record.date, courseId: record.course_id, course: names.get(record.course_id) || 'Course' }));
+      render();
+      updateStats();
+    } catch (error) {
+      console.warn('Attendance backend sync unavailable:', error.message);
+    }
+  }
+
+  list.addEventListener('click', async e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const i = parseInt(btn.dataset.index, 10);
     const records = load();
     if (btn.dataset.action === 'delete') {
       const deletedRecord = records.splice(i, 1)[0];
+      if (deletedRecord.id && window.ScholarisApi?.isAuthenticated()) await window.ScholarisApi.deleteAttendance(deletedRecord.id);
       save(records);
       if (window.showToast) {
         window.showToast('Attendance record deleted', 'success', {
@@ -204,7 +226,7 @@
     }
   });
 
-  function addAttendance() {
+  async function addAttendance() {
     // Clear previous errors
     Validate.clearError(dateInput);
     Validate.clearError(courseInput);
@@ -252,6 +274,22 @@
     const status = statusSelect.value;
     const records = load();
 
+    if (window.ScholarisApi?.isAuthenticated() && course !== 'Custom') {
+      const courseId = Number(course);
+      try {
+        const existing = records.find(record => record.date === date && Number(record.courseId || record.course_id) === courseId);
+        if (existing?.id) await window.ScholarisApi.updateAttendance(existing.id, { status });
+        else await window.ScholarisApi.createAttendance({ date, status, course_id: courseId });
+        await syncFromBackend();
+        window.showToast?.('Attendance synced to your account!');
+      } catch (error) {
+        window.showToast?.(error.message, 'error');
+      }
+      statusSelect.value = 'present';
+      updateCourseDropdown(date);
+      return;
+    }
+
     // 4. Duplicate check — same date + same course
     const existingIndex = records.findIndex(r => r.date === date && r.course === course);
     if (existingIndex >= 0) {
@@ -285,4 +323,6 @@
   });
   render();
   updateStats();
+  window.addEventListener('scholaris:auth-changed', syncFromBackend);
+  syncFromBackend();
 })();
