@@ -12,8 +12,15 @@
   window.showToast = function(message, type = 'success', action = null) {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
-    const iconClass = type === 'success' ? 'ph-check-circle' : 'ph-warning-circle';
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+
+    const iconClass = {
+      success: 'ph-check-circle',
+      info: 'ph-info',
+      warning: 'ph-warning',
+      error: 'ph-warning-circle'
+    }[type] || 'ph-info';
     
     toast.innerHTML = `
       <i class="ph-fill ${iconClass} toast-icon"></i>
@@ -33,6 +40,14 @@
       });
       toast.appendChild(actionBtn);
     }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close icon-btn';
+    closeBtn.type = 'button';
+    closeBtn.setAttribute('aria-label', 'Dismiss notification');
+    closeBtn.innerHTML = '<i class="ph ph-x" aria-hidden="true"></i>';
+    closeBtn.addEventListener('click', () => dismissToast(toast));
+    toast.appendChild(closeBtn);
     
     container.appendChild(toast);
     
@@ -40,7 +55,7 @@
     setTimeout(() => toast.classList.add('show'), 10);
     
     // Remove after 5 seconds
-    const timeoutId = setTimeout(() => dismissToast(toast), 5000);
+    const timeoutId = setTimeout(() => dismissToast(toast), type === 'error' ? 7000 : 5000);
     toast.dataset.timeoutId = timeoutId;
   };
 
