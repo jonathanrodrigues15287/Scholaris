@@ -34,6 +34,13 @@ window.States = (function () {
       </li>`;
   }
 
+  function skeleton(rows = 3) {
+    return Array.from({ length: rows }, () => `
+      <li class="state-skeleton" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </li>`).join('');
+  }
+
   /**
    * Renders an error-state block.
    * @param {string} message     — Error message to display
@@ -53,8 +60,46 @@ window.States = (function () {
       </li>`;
   }
 
-  return { empty, loading, error };
+  return { empty, loading, skeleton, error };
 })();
+
+window.confirmAction = function (message, { title = 'Please confirm', confirmLabel = 'Confirm', danger = false } = {}) {
+  return new Promise(resolve => {
+    const escapeHtml = value => {
+      const node = document.createElement('div');
+      node.textContent = value;
+      return node.innerHTML;
+    };
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay confirm-overlay';
+    overlay.innerHTML = `
+      <dialog class="modal-content card confirm-dialog" open aria-modal="true">
+        <header><h2 class="card-title">${escapeHtml(title)}</h2></header>
+        <p class="text-secondary">${escapeHtml(message)}</p>
+        <footer class="flex-end mt-1-5">
+          <button type="button" class="btn btn-secondary" data-confirm-cancel>Cancel</button>
+          <button type="button" class="btn ${danger ? 'btn-danger' : ''}" data-confirm-ok>${confirmLabel}</button>
+        </footer>
+      </dialog>`;
+    document.body.appendChild(overlay);
+    const close = result => { document.removeEventListener('keydown', onKeydown); overlay.remove(); resolve(result); };
+    overlay.querySelector('[data-confirm-cancel]').addEventListener('click', () => close(false));
+    overlay.querySelector('[data-confirm-ok]').addEventListener('click', () => close(true));
+    overlay.addEventListener('click', event => { if (event.target === overlay) close(false); });
+    const onKeydown = event => {
+      if (event.key === 'Escape') { close(false); return; }
+      if (event.key !== 'Tab') return;
+      const focusable = overlay.querySelectorAll('button:not([disabled])');
+      if (focusable.length < 2) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKeydown);
+    overlay.querySelector('[data-confirm-cancel]').focus();
+  });
+};
 
 // Unsaved changes protection
 window.addEventListener('beforeunload', (e) => {
