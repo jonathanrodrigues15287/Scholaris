@@ -32,23 +32,35 @@ def verify_password(password: str, encoded_password: str) -> bool:
 
 
 def create_access_token(subject: str) -> str:
-	expires_at = datetime.now(timezone.utc) + timedelta(
-		minutes=settings.access_token_expire_minutes
-	)
+	return _create_token(subject, "access", timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+
+
+def create_refresh_token(subject: str) -> str:
+	return _create_token(subject, "refresh", timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+
+
+def _create_token(subject: str, token_type: str, lifetime: timedelta) -> str:
+	expires_at = datetime.now(timezone.utc) + lifetime
 	return jwt.encode(
-		{"sub": subject, "exp": expires_at},
-		settings.jwt_secret_key,
-		algorithm=settings.jwt_algorithm,
+		{"sub": subject, "type": token_type, "exp": expires_at},
+		settings.JWT_SECRET_KEY.get_secret_value(),
+		algorithm=settings.JWT_ALGORITHM,
 	)
 
 
-def decode_access_token(token: str) -> str:
+def decode_token(token: str, expected_type: str = "access") -> str:
 	payload = jwt.decode(
 		token,
-		settings.jwt_secret_key,
-		algorithms=[settings.jwt_algorithm],
+		settings.JWT_SECRET_KEY.get_secret_value(),
+		algorithms=[settings.JWT_ALGORITHM],
 	)
+	if payload.get("type") != expected_type:
+		raise ValueError("Invalid token type")
 	subject = payload.get("sub")
 	if not subject:
 		raise ValueError("Token subject is missing")
 	return str(subject)
+
+
+def decode_access_token(token: str) -> str:
+	return decode_token(token, "access")
