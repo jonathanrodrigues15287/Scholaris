@@ -82,6 +82,44 @@
     updateDashboard(tasks);
   }
 
+  function fromApiAssignment(task) {
+    return {
+      id: task.id,
+      title: task.title,
+      due: task.due_date || '',
+      priority: task.priority || 'medium',
+      priorityMode: task.priority_mode || 'manual',
+      done: Boolean(task.is_completed),
+      submitted: Boolean(task.is_submitted),
+      status: task.status || 'pending',
+      updatedAt: task.updated_at || null,
+      syncState: 'synced'
+    };
+  }
+
+  async function syncFromBackend() {
+    if (!window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const remoteTasks = await window.ScholarisApi.getAssignments();
+      save(remoteTasks.map(fromApiAssignment));
+      render();
+    } catch (error) {
+      console.warn('Scholaris backend sync unavailable:', error.message);
+    }
+  }
+
+  async function syncTaskCreate(task) {
+    if (!window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const remoteTask = await window.ScholarisApi.createAssignment(task);
+      task.id = remoteTask.id;
+      save(load());
+      render();
+    } catch (error) {
+      window.showToast?.(`Saved locally. Backend sync failed: ${error.message}`, 'error');
+    }
+  }
+
   function dateToIso(dateStr) {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
@@ -235,6 +273,8 @@
               ${t.priority ? `<i class="ph-fill ph-flag" style="color: ${getPriorityColor(t.priority)}; font-size: 0.8rem; margin-left: 4px;" title="Priority: ${t.priority}"></i>` : ''}
             </div>
             <div class="task-right">
+              ${t.syncState === 'pending' ? '<span class="badge badge-yellow" title="Waiting for server confirmation">Syncing</span>' : ''}
+              ${t.syncState === 'conflict' ? '<span class="badge badge-red" title="This change conflicts with another device">Conflict</span>' : ''}
               <span class="badge ${getBadgeClass(t.due)}">${getBadgeLabel(t.due)}</span>
               <button class="icon-btn submit-btn" data-action="submit" data-index="${origIdx}" title="${t.submitted ? 'Unmark Submitted' : 'Mark Submitted'}">
                 <i class="ph${t.submitted ? '-fill' : ''} ph-paper-plane-right" ${t.submitted ? 'style="color: #3b82f6;"' : ''}></i>
@@ -267,6 +307,7 @@
 
   // Expose render globally for the error-state retry button
   window._assignmentsRender = render;
+  window.addEventListener('scholaris:sync-state-changed', render);
 
   function updateDashboard(tasks) {
     const deadlineList = document.getElementById('dashboard-deadlines');
@@ -302,13 +343,26 @@
     return div.innerHTML;
   }
 
-  const handleTaskAction = e => {
+  const handleTaskAction = async e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const i = parseInt(btn.dataset.index, 10);
     const tasks = load();
     if (btn.dataset.action === 'toggle') {
       tasks[i].done = !tasks[i].done;
+      if (tasks[i].id && window.ScholarisApi?.isAuthenticated()) {
+        try {
+          const updated = await window.ScholarisApi.updateAssignment(tasks[i].id, {
+            status: tasks[i].done ? 'completed' : 'pending',
+            expected_updated_at: tasks[i].updatedAt
+          });
+          tasks[i].updatedAt = updated?.updated_at || tasks[i].updatedAt;
+          tasks[i].syncState = 'synced';
+        } catch (error) {
+          tasks[i].syncState = error.queued ? 'pending' : 'conflict';
+          window.showToast?.(error.queued ? 'Marked complete offline; waiting to sync.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
+        }
+      }
       save(tasks);
       render();
       if (tasks[i].done && window.showToast) {
@@ -316,6 +370,13 @@
       }
     } else if (btn.dataset.action === 'delete') {
       const deletedTask = tasks.splice(i, 1)[0];
+      if (deletedTask.id && window.ScholarisApi?.isAuthenticated()) {
+        try {
+          await window.ScholarisApi.deleteAssignment(deletedTask.id);
+        } catch (error) {
+          window.showToast?.(error.queued ? 'Deletion queued until you reconnect.' : `Backend delete failed: ${error.message}`, error.queued ? 'info' : 'error');
+        }
+      }
       save(tasks);
       render();
       if (window.showToast) {
@@ -332,6 +393,17 @@
       }
     } else if (btn.dataset.action === 'submit') {
       tasks[i].submitted = !tasks[i].submitted;
+      if (tasks[i].id && window.ScholarisApi?.isAuthenticated()) {
+        try {
+          await window.ScholarisApi.updateAssignment(tasks[i].id, {
+            status: tasks[i].submitted ? 'submitted' : (tasks[i].done ? 'completed' : 'pending'),
+            expected_updated_at: tasks[i].updatedAt
+          });
+        } catch (error) {
+          tasks[i].syncState = error.queued ? 'pending' : 'conflict';
+          window.showToast?.(error.queued ? 'Submission queued until you reconnect.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
+        }
+      }
       save(tasks);
       render();
       if (window.showToast) window.showToast(tasks[i].submitted ? 'Assignment marked as submitted!' : 'Assignment unmarked as submitted!');
@@ -394,8 +466,10 @@
       priority = calculateAutoPriority(isoDate, pendingCount);
     }
 
-    tasks.push({ title, due: isoDate, priority, priorityMode: currentPriorityMode, done: false });
+    const task = { title, due: isoDate, priority, priorityMode: currentPriorityMode, done: false, submitted: false };
+    tasks.push(task);
     save(tasks);
+    syncTaskCreate(task);
 
     titleInput.value = '';
     if (datePicker) {
@@ -426,7 +500,10 @@
   if (filterPriority) filterPriority.addEventListener('change', render);
   if (sortSelect) sortSelect.addEventListener('change', render);
 
+  window.addEventListener('scholaris:sync-requested', syncFromBackend);
+
   // Init
   render();
   updateDashboard(load());
+  syncFromBackend();
 })();
