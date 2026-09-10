@@ -1,10 +1,12 @@
-// cgpa.js — dynamic multi-semester SGPA and CGPA calculator with localStorage persistence
+// cgpa.js — API-backed academic records with a local offline cache
 
 (function () {
   const STORAGE_KEY = 'scholaris_cgpa_semesters';
   const semestersContainer = document.getElementById('semesters-container');
   const addSemesterBtn = document.getElementById('add-semester-btn');
+  const saveCgpaBtn = document.getElementById('save-cgpa-btn');
   const overallCgpaResult = document.getElementById('overall-cgpa-result');
+  let backendSyncTimer = null;
 
   if (!semestersContainer) return;
 
@@ -37,12 +39,21 @@
       semCard.querySelectorAll('.cgpa-row').forEach((row) => {
         subjects.push({
           id: row.dataset.id,
+          serverId: row.dataset.serverId || undefined,
+          code: row.dataset.code || undefined,
           name: row.querySelector('.subj-name').value,
           credits: row.querySelector('.subj-credits').value,
           grade: row.querySelector('.subj-grade').value,
         });
       });
-      semesters.push({ id, subjects });
+      semesters.push({
+        id,
+        serverId: semCard.dataset.serverId || undefined,
+        name: semCard.querySelector('.semester-name')?.value || `Semester ${semesters.length + 1}`,
+        academicYear: semCard.querySelector('.semester-year')?.value || new Date().getFullYear().toString(),
+        semesterNumber: Number(semCard.dataset.semesterNumber) || semesters.length + 1,
+        subjects
+      });
     });
     return semesters;
   }
@@ -51,6 +62,10 @@
     const state = getState();
     save(state);
     calculateAndDisplay(state);
+    if (window.ScholarisApi?.isAuthenticated()) {
+      clearTimeout(backendSyncTimer);
+      backendSyncTimer = setTimeout(syncToBackend, 500);
+    }
   }
 
   function calculateAndDisplay(semesters) {
@@ -69,7 +84,7 @@
       }
 
       sem.subjects.forEach(sub => {
-        if (!sub.credits || !sub.grade) {
+        if (sub.credits === '' || sub.grade === '') {
             hasEmptyFields = true;
             hasError = true;
             return;
@@ -119,11 +134,16 @@
     const card = document.createElement('div');
     card.className = 'card semester-card';
     card.dataset.id = semester.id;
+    if (semester.serverId) card.dataset.serverId = semester.serverId;
+    card.dataset.semesterNumber = semester.semesterNumber || index + 1;
     card.style.marginBottom = '1.5rem';
     
     card.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h2 class="card-title" style="margin-bottom: 0;">Semester ${index + 1}</h2>
+        <div>
+          <input class="form-control semester-name" aria-label="Semester name" value="${escapeHtml(semester.name || `Semester ${index + 1}`)}">
+          <input class="form-control semester-year" aria-label="Academic year" value="${escapeHtml(semester.academicYear || new Date().getFullYear().toString())}">
+        </div>
         <button class="icon-btn remove-sem-btn" title="Remove semester" style="color: var(--badge-red-text, #991b1b);">
           <i class="ph ph-trash"></i>
         </button>
@@ -149,6 +169,10 @@
     
     semester.subjects.forEach(sub => {
       rowsContainer.appendChild(renderSubjectRow(sub));
+    });
+
+    card.querySelectorAll('.semester-name, .semester-year').forEach(input => {
+      input.addEventListener('input', updateStateAndRender);
     });
 
     // Add subject
@@ -179,6 +203,8 @@
     const div = document.createElement('div');
     div.className = 'cgpa-row';
     div.dataset.id = subject.id;
+    if (subject.serverId) div.dataset.serverId = subject.serverId;
+    if (subject.code) div.dataset.code = subject.code;
     div.innerHTML = `
       <input type="text" class="form-control subj-name" placeholder="e.g. Maths" value="${escapeHtml(subject.name)}">
       <input type="number" class="form-control subj-credits" placeholder="Credits" min="0.5" max="10" step="0.5" value="${subject.credits}">
@@ -276,9 +302,85 @@
   // Expose for retry button
   window._cgpaRenderAll = renderAll;
 
+  async function hydrateFromBackend() {
+    if (!window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const records = await window.ScholarisApi.getAcademicRecords();
+      const semesters = records.semesters.map(semester => ({
+        id: `server-${semester.id}`,
+        serverId: semester.id,
+        name: semester.name,
+        academicYear: semester.academic_year,
+        semesterNumber: semester.semester_number,
+        subjects: semester.courses.map(course => ({
+          id: `server-${course.id}`,
+          serverId: course.id,
+          name: course.name,
+          code: course.code,
+          credits: course.credits,
+          grade: course.grade ?? ''
+        }))
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(semesters));
+      renderAll();
+    } catch (error) {
+      console.warn('Could not load academic records:', error);
+    }
+  }
+
+  async function syncToBackend() {
+    if (!window.ScholarisApi?.isAuthenticated()) {
+      window.showToast?.('Connect your account before saving academic records.', 'error');
+      return;
+    }
+    saveCgpaBtn.disabled = true;
+    try {
+      for (const semester of getState()) {
+        let semesterId = semester.serverId;
+        if (!semesterId) {
+          const created = await window.ScholarisApi.createAcademicSemester({
+            name: semester.name,
+            semester_number: semester.semesterNumber,
+            academic_year: semester.academicYear
+          });
+          semesterId = created.id;
+        }
+        for (const subject of semester.subjects) {
+          if (!subject.name || !subject.credits || subject.grade === '') continue;
+          const payload = { name: subject.name, code: subject.code || subject.name.slice(0, 20).toUpperCase(), credits: Number(subject.credits), grade: Number(subject.grade) };
+          if (subject.serverId) await window.ScholarisApi.updateAcademicCourse(subject.serverId, payload);
+          else await window.ScholarisApi.createAcademicCourse(semesterId, payload);
+        }
+      }
+      await hydrateFromBackend();
+      window.showToast?.('Academic records saved to your account.');
+    } catch (error) {
+      window.showToast?.(error.message, 'error');
+    } finally {
+      saveCgpaBtn.disabled = false;
+    }
+  }
+
+  saveCgpaBtn?.addEventListener('click', syncToBackend);
+  window.addEventListener('scholaris:auth-changed', hydrateFromBackend);
+  document.getElementById('target-cgpa-btn')?.addEventListener('click', async () => {
+    const result = document.getElementById('target-cgpa-result');
+    try {
+      const data = await window.ScholarisApi.calculateTargetCgpa({
+        target_cgpa: Number(document.getElementById('target-cgpa-input').value),
+        next_semester_credits: Number(document.getElementById('target-credits-input').value)
+      });
+      result.textContent = data.possible
+        ? `You need approximately ${data.required_sgpa.toFixed(2)} SGPA next semester.`
+        : `A ${data.required_sgpa.toFixed(2)} SGPA is outside the 0-10 scale.`;
+    } catch (error) {
+      result.textContent = error.message;
+    }
+  });
+
   addSemesterBtn?.addEventListener('click', () => {
     const state = getState();
-    state.push({ id: generateId(), subjects: [{ id: generateId(), name: '', credits: '', grade: '' }] });
+    state.push({ id: generateId(), name: `Semester ${state.length + 1}`, academicYear: new Date().getFullYear().toString(), semesterNumber: state.length + 1, subjects: [{ id: generateId(), name: '', credits: '', grade: '' }] });
     save(state);
     renderAll();
   });
