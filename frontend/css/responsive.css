@@ -56,7 +56,7 @@
   }
 
   .topbar {
-    height: 64px;
+    min-height: 64px;
     padding: 0 16px;
     justify-content: space-between;
     background-color: var(--card-bg);
@@ -71,7 +71,21 @@
   .search-container {
     width: auto;
     flex: 1;
+    min-width: 0;
     max-width: 280px;
+  }
+
+  .api-auth {
+    gap: 4px;
+  }
+
+  .api-auth-status,
+  .api-auth-input {
+    display: none;
+  }
+
+  .api-auth-btn {
+    padding: 7px 8px;
   }
 
   .content-wrapper {
@@ -95,11 +109,41 @@
     grid-template-columns: 1fr;
   }
 
+  .section-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .section-subtitle {
+    max-width: 42rem;
+    line-height: 1.5;
+  }
+
+  .card-header,
+  .tt-action-btns,
+  .flex-end {
+    flex-wrap: wrap;
+  }
+
+  .tt-action-btns > *,
+  .tt-action-btns .btn {
+    max-width: 100%;
+  }
+
   /* CGPA */
   .cgpa-header-row,
   .cgpa-row {
     grid-template-columns: 1fr 80px 80px 36px;
     gap: 6px;
+  }
+
+  .semester-card > div:first-child {
+    align-items: flex-start !important;
+    gap: 0.75rem;
+  }
+
+  .semester-name,
+  .semester-year {
+    max-width: 100%;
   }
 
   /* Timer */
@@ -162,6 +206,22 @@
 
 /* ── Small Mobile (<=480px) ── */
 @media (max-width: 480px) {
+  .topbar {
+    row-gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .search-container {
+    max-width: none;
+  }
+
+  .api-auth {
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
   .section-title { font-size: 1.25rem; }
 
   /* Assignments */
@@ -212,6 +272,14 @@
 
   .toast {
     max-width: 100%;
+  }
+
+  .confirm-dialog .flex-end {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-dialog .flex-end .btn {
+    width: 100%;
   }
 }
 
