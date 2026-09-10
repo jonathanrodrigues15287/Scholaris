@@ -6,7 +6,7 @@
 
 (() => {
   /* Constants */
-  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const DAY_ABBREV = {
     mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday',
     fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
@@ -51,6 +51,8 @@
   /* State: schedule = Array<{ id, subject, day, startTime, endTime, room, faculty, color }> */
   let schedule   = [];
   let activeDays = [...DAYS];
+  let viewMode = 'week';
+  let selectedViewDay = 'Monday';
 
   /* ===== 1. UPLOAD ZONE ===== */
   uploadZone.addEventListener('click', () => fileInput.click());
@@ -66,6 +68,18 @@
   reuploadBtn.addEventListener('click', () => { output.hidden = true; uploadZone.hidden = false; fileInput.value = ''; });
   saveBtn.addEventListener('click', saveSchedule);
   addSlotBtn.addEventListener('click', addTimeSlot);
+  document.getElementById('tt-duplicate-week')?.addEventListener('click', duplicateWeek);
+  document.getElementById('tt-view-mode')?.addEventListener('change', event => {
+    viewMode = event.target.value;
+    renderGrid();
+  });
+  document.getElementById('tt-view-day')?.addEventListener('change', event => {
+    selectedViewDay = event.target.value;
+    renderGrid();
+  });
+  window.addEventListener('scholaris:sync-requested', () => {
+    if (window.ScholarisApi?.isAuthenticated()) loadRemoteSchedule();
+  });
 
   /* ===== 2. FILE PROCESSING PIPELINE ===== */
   async function processFile(file) {
@@ -84,9 +98,9 @@
     try {
       const canvas = isPdf ? await renderPdfToCanvas(file) : await renderImageToCanvas(file);
       setProgress(30, 'Starting OCR engine...');
-      const rawText = await runOcr(canvas);
+      const ocrData = await runOcr(canvas);
       setProgress(85, 'Parsing schedule...');
-      const parsed  = parseSchedule(rawText);
+      const parsed  = parseSchedule(ocrData.text, ocrData);
       schedule      = parsed.schedule;
       activeDays    = parsed.days.length ? parsed.days : [...DAYS];
       setProgress(100, 'Done!');
@@ -155,9 +169,13 @@
         }
       }
     });
-    const { data: { text } } = await worker.recognize(canvas);
+    await worker.setParameters({
+      preserve_interword_spaces: '1',
+      tessedit_pageseg_mode: '6'
+    });
+    const { data } = await worker.recognize(canvas);
     await worker.terminate();
-    return text;
+    return data;
   }
   function loadTesseract() {
     if (window.Tesseract) return Promise.resolve();
@@ -170,9 +188,17 @@
   }
 
   /* ===== 6. TEXT PARSER ===== */
-  function parseSchedule(text) {
+  function parseSchedule(text, ocrData = null) {
     const lines        = text.split('\n').map(l => l.trim()).filter(Boolean);
     const detectedDays = detectDays(lines);
+    const spatialSchedule = parseSpatialTable(ocrData);
+    if (spatialSchedule.length) {
+      return { schedule: spatialSchedule, days: detectedDays };
+    }
+    const tableSchedule = parseDayRowTable(text);
+    if (tableSchedule.length) {
+      return { schedule: tableSchedule, days: detectedDays };
+    }
     const slots        = [];
     const timeRe       = /\b(\d{1,2}[:.]\d{2}\s*(?:AM|PM|am|pm)?(?:\s*[-]\s*\d{1,2}[:.]\d{2}\s*(?:AM|PM|am|pm)?)?)/i;
     let currentTime = null, currentDay = null, dayBuffer = {};
@@ -234,13 +260,123 @@
     return { schedule: flatEvents, days: detectedDays };
   }
 
+  function parseSpatialTable(ocrData) {
+    const words = (ocrData?.words || []).filter(word => word.text?.trim());
+    if (words.length < 10) return [];
+
+    const dayWords = words.filter(word => isDayPrefix(word.text.trim()));
+    if (dayWords.length < 2) return [];
+    const firstDayTop = Math.min(...dayWords.map(word => word.top));
+    const timeWords = words
+      .filter(word => word.top < firstDayTop && /\d{1,2}\s*[:.]\s*\d{2}/.test(word.text))
+      .map(word => ({ ...word, time: parseTimeTo24H(word.text), center: word.left + word.width / 2 }));
+    const columns = [];
+    timeWords.sort((a, b) => a.center - b.center).forEach(word => {
+      if (!columns.some(column => Math.abs(column.center - word.center) < 45)) columns.push(word);
+    });
+    if (columns.length < 2) return [];
+    columns.sort((a, b) => a.center - b.center);
+
+    const rows = [...dayWords]
+      .sort((a, b) => a.top - b.top)
+      .filter((word, index, list) => index === 0 || Math.abs(word.top - list[index - 1].top) > 12);
+    const events = [];
+    rows.forEach((dayWord, rowIndex) => {
+      const nextRow = rows[rowIndex + 1];
+      const lowerBound = nextRow ? (dayWord.top + nextRow.top) / 2 : Infinity;
+      const rowWords = words.filter(word => {
+        const centerY = word.top + word.height / 2;
+        return centerY >= dayWord.top - 12 && centerY < lowerBound && word !== dayWord;
+      });
+      columns.forEach((column, columnIndex) => {
+        const cellWords = rowWords
+          .filter(word => {
+            const wordCenter = word.left + word.width / 2;
+            const nearestColumn = columns.reduce((nearest, candidate, candidateIndex) =>
+              Math.abs(candidate.center - wordCenter) < Math.abs(columns[nearest].center - wordCenter)
+                ? candidateIndex : nearest, 0);
+            return nearestColumn === columnIndex;
+          })
+          .sort((a, b) => a.left - b.left || a.top - b.top);
+        const subject = cleanOcrCell(cellWords.map(word => word.text).join(' '));
+        if (subject.length < 2 || /^(day|time|room|class)$/i.test(subject)) return;
+        events.push({
+          id: 'tt_' + Math.random().toString(36).slice(2, 11),
+          subject,
+          day: DAY_ABBREV[dayWord.text.toLowerCase().replace(/[^a-z]/g, '')],
+          startTime: column.time,
+          endTime: columns[columnIndex + 1]?.time || addHourTo24H(column.time),
+          room: '',
+          faculty: '',
+          color: 'blue'
+        });
+      });
+    });
+    return events;
+  }
+
+  // College timetables commonly use weekdays as rows and lecture times as columns.
+  function parseDayRowTable(text) {
+    const rawLines = text.split('\n').map(line => line.replace(/\r/g, '').trimEnd()).filter(Boolean);
+    const timePattern = /(\d{1,2}\s*[:.]\s*\d{2}\s*(?:a\.?m\.?|p\.?m\.?)?)/gi;
+    const headerTimes = [];
+    let firstDayIndex = -1;
+
+    for (let index = 0; index < rawLines.length; index += 1) {
+      const matches = [...rawLines[index].matchAll(timePattern)];
+      if (matches.length >= 2) matches.forEach(match => headerTimes.push(parseTimeTo24H(match[1])));
+      if (isDayPrefix(rawLines[index])) {
+        firstDayIndex = index;
+        break;
+      }
+    }
+
+    const uniqueTimes = [...new Set(headerTimes)];
+    if (uniqueTimes.length < 2 || firstDayIndex < 0) return [];
+
+    const result = [];
+    for (const line of rawLines.slice(firstDayIndex)) {
+      const dayMatch = line.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b\s*/i);
+      if (!dayMatch) continue;
+      const day = DAY_ABBREV[dayMatch[1].toLowerCase()];
+      const cells = line.slice(dayMatch[0].length)
+        .split(/\s{2,}|\|/)
+        .map(cell => cleanOcrCell(cell))
+        .filter(Boolean);
+
+      cells.forEach((subject, index) => {
+        if (index >= uniqueTimes.length || subject.length < 2) return;
+        const startTime = uniqueTimes[index];
+        result.push({
+          id: 'tt_' + Math.random().toString(36).slice(2, 11),
+          subject,
+          day,
+          startTime,
+          endTime: uniqueTimes[index + 1] || addHourTo24H(startTime),
+          room: '',
+          faculty: '',
+          color: 'blue'
+        });
+      });
+    }
+    return result;
+  }
+
+  function isDayPrefix(line) {
+    return /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i.test(line);
+  }
+
+  function cleanOcrCell(value) {
+    return value.replace(/\s+/g, ' ').trim();
+  }
+
   function parseTimeTo24H(t) {
     if (!t) return '09:00';
-    const match = t.match(/(\d{1,2})[:.](\d{2})\s*(AM|PM|am|pm)?/i);
+    const match = t.match(/(\d{1,2})\s*[:.]\s*(\d{2})\s*(A\.?M\.?|P\.?M\.?)?/i);
     if (!match) return '09:00';
     let h = parseInt(match[1], 10);
     const m = match[2];
-    const ampm = (match[3] || '').toUpperCase();
+    const ampm = (match[3] || '').replace(/\./g, '').toUpperCase();
     if (ampm === 'PM' && h !== 12) h += 12;
     if (ampm === 'AM' && h === 12) h = 0;
     return `${h.toString().padStart(2, '0')}:${m}`;
@@ -288,7 +424,8 @@
     gridHead.innerHTML = '';
     const trH = document.createElement('tr');
     const th0 = document.createElement('th'); th0.textContent = 'Time'; th0.className = 'tt-th-time'; trH.appendChild(th0);
-    for (const day of activeDays) { const th = document.createElement('th'); th.textContent = day; trH.appendChild(th); }
+    const visibleDays = viewMode === 'day' ? [selectedViewDay] : activeDays;
+    for (const day of visibleDays) { const th = document.createElement('th'); th.textContent = day; trH.appendChild(th); }
     gridHead.appendChild(trH);
 
     gridBody.innerHTML = '';
@@ -300,7 +437,7 @@
     const sortedBlocks = Array.from(timeBlocks).sort((a, b) => a.localeCompare(b));
 
     if (sortedBlocks.length === 0) {
-      gridBody.innerHTML = `<tr><td colspan="${activeDays.length + 1}" style="text-align: center; padding: 2rem;">No classes scheduled. Click 'Add Time Slot' below.</td></tr>`;
+      gridBody.innerHTML = `<tr><td colspan="${visibleDays.length + 1}" style="text-align: center; padding: 2rem;">No classes scheduled. Click 'Add Time Slot' below.</td></tr>`;
       return;
     }
 
@@ -313,7 +450,7 @@
       tdT.innerHTML = `<div style="font-weight: 500;">${format12H(start)}</div><div style="font-size: 0.75rem; color: var(--text-secondary); opacity: 0.8;">${format12H(end)}</div>`;
       tr.appendChild(tdT);
 
-      for (const day of activeDays) {
+      for (const day of visibleDays) {
         const td = document.createElement('td'); 
         td.className = 'tt-td-slot';
         
@@ -329,6 +466,54 @@
       }
       gridBody.appendChild(tr);
     });
+    refreshGapSummary();
+  }
+
+  async function refreshGapSummary() {
+    const summary = document.getElementById('tt-gap-summary');
+    if (!summary) return;
+    if (window.ScholarisApi?.isAuthenticated()) {
+      try {
+        const gaps = await window.ScholarisApi.getTimetableGaps();
+        summary.textContent = gaps.length
+          ? `${gaps.length} gap${gaps.length === 1 ? '' : 's'} between lectures this week.`
+          : 'No gaps between lectures this week.';
+        return;
+      } catch (_) {}
+    }
+    const gaps = [];
+    const byDay = {};
+    schedule.forEach(event => (byDay[event.day] ||= []).push(event));
+    Object.values(byDay).forEach(events => {
+      events.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      for (let index = 1; index < events.length; index += 1) {
+        if (events[index - 1].endTime < events[index].startTime) gaps.push(true);
+      }
+    });
+    summary.textContent = gaps.length
+      ? `${gaps.length} gap${gaps.length === 1 ? '' : 's'} between lectures this week.`
+      : 'No gaps between lectures this week.';
+  }
+
+  async function duplicateWeek() {
+    if (!window.ScholarisApi?.isAuthenticated()) {
+      window.showToast?.('Connect your account before duplicating a week.', 'error');
+      return;
+    }
+    const rawSemester = window.prompt('Optional target semester ID (leave blank for the current semester):');
+    if (rawSemester === null) return;
+    const semesterId = rawSemester.trim() ? Number(rawSemester.trim()) : null;
+    if (rawSemester.trim() && (!Number.isInteger(semesterId) || semesterId < 1)) {
+      window.showToast?.('Enter a valid semester ID.', 'error');
+      return;
+    }
+    try {
+      await window.ScholarisApi.duplicateTimetableWeek(semesterId);
+      await loadRemoteSchedule();
+      window.showToast?.('Week duplicated.', 'success');
+    } catch (error) {
+      window.showToast?.(error.message, 'error');
+    }
   }
 
   function format12H(time24) {
@@ -368,7 +553,7 @@
     if (modalWarning) modalWarning.hidden = true;
     
     if (id) {
-      const e = schedule.find(x => x.id === id);
+      const e = schedule.find(x => String(x.id) === String(id));
       if (!e) return;
       modalTitle.innerHTML = `<i class="ph-fill ph-pencil-simple" aria-hidden="true"></i> Edit Class Event`;
       modalId.value = e.id;
@@ -464,7 +649,7 @@
     };
 
     if (id) {
-      const idx = schedule.findIndex(e => e.id === id);
+      const idx = schedule.findIndex(e => String(e.id) === String(id));
       if (idx > -1) schedule[idx] = { ...schedule[idx], ...eventData };
     } else {
       eventData.id = 'tt_' + Math.random().toString(36).substr(2, 9);
@@ -477,8 +662,8 @@
 
   modalDeleteBtn?.addEventListener('click', () => {
     const classId = modalId.value;
-    const deletedClass = schedule.find(e => e.id === classId);
-    schedule = schedule.filter(e => e.id !== classId);
+    const deletedClass = schedule.find(e => String(e.id) === String(classId));
+    schedule = schedule.filter(e => String(e.id) !== String(classId));
     closeModal();
     renderGrid();
     if (window.showToast && deletedClass) {
@@ -494,7 +679,7 @@
   });
 
   modalDuplicateBtn?.addEventListener('click', () => {
-    const e = schedule.find(x => x.id === modalId.value);
+    const e = schedule.find(x => String(x.id) === String(modalId.value));
     if (!e) return;
     const copy = { ...e, id: 'tt_' + Math.random().toString(36).substr(2, 9) };
     schedule.push(copy);
@@ -508,7 +693,29 @@
     openModal(null, 'Monday', '09:00', '10:00');
   }
 
-  function saveSchedule() {
+  async function saveSchedule() {
+    const invalid = schedule.find(event => !event.subject?.trim() || !event.day || !event.startTime || !event.endTime || event.startTime >= event.endTime);
+    if (invalid) {
+      window.showToast?.('Review the timetable: every class needs a subject and valid times.', 'error');
+      return;
+    }
+    const conflicts = schedule.some((entry, index) => schedule.slice(index + 1).some(other =>
+      entry.day === other.day && entry.startTime < other.endTime && entry.endTime > other.startTime
+    ));
+    if (conflicts) {
+      window.showToast?.('Resolve overlapping classes before saving.', 'error');
+      return;
+    }
+    if (!await window.confirmAction('Save this reviewed timetable to your Scholaris account?', { title: 'Save timetable', confirmLabel: 'Save schedule' })) return;
+    if (window.ScholarisApi?.isAuthenticated()) {
+      try {
+        await saveRemoteSchedule();
+        window.showToast?.('Timetable synced to your account.', 'success');
+      } catch (error) {
+        window.showToast?.(error.message, 'error');
+        return;
+      }
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ schedule, activeDays }));
     const orig = saveBtn.innerHTML;
     saveBtn.innerHTML = '<i class="ph ph-check"></i> Saved!';
@@ -517,7 +724,39 @@
     updateDashboard();
   }
 
-  function loadSaved() {
+  async function saveRemoteSchedule() {
+    const existing = await window.ScholarisApi.getTimetable();
+    const keptIds = new Set();
+    for (const event of schedule) {
+      const course = await window.ScholarisApi.getOrCreateCourse(event.subject);
+      const payload = {
+        day: event.day,
+        start_time: event.startTime,
+        end_time: event.endTime,
+        room: event.room || null,
+        faculty: event.faculty || null,
+        course_id: course.id
+      };
+      if (Number.isInteger(event.id)) {
+        await window.ScholarisApi.updateTimetableEntry(event.id, payload);
+        keptIds.add(event.id);
+      } else {
+        const saved = await window.ScholarisApi.createTimetableEntry(payload);
+        event.id = saved.id;
+        keptIds.add(saved.id);
+      }
+    }
+    await Promise.all(existing.filter(entry => !keptIds.has(entry.id)).map(entry =>
+      window.ScholarisApi.deleteTimetableEntry(entry.id)
+    ));
+  }
+
+  async function loadSaved() {
+    if (window.ScholarisApi?.isAuthenticated()) {
+      await loadRemoteSchedule();
+      updateDashboard();
+      return;
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -551,6 +790,35 @@
       }
     } catch (_) {}
     updateDashboard();
+    if (window.ScholarisApi?.isAuthenticated()) await loadRemoteSchedule();
+  }
+
+  async function loadRemoteSchedule() {
+    try {
+      const [entries, courses] = await Promise.all([
+        window.ScholarisApi.getTimetable(),
+        window.ScholarisApi.getCourses()
+      ]);
+      if (!entries.length) return;
+      const courseNames = new Map(courses.map(course => [course.id, course.name]));
+      schedule = entries.map(entry => ({
+        id: entry.id,
+        subject: courseNames.get(entry.course_id) || 'Untitled class',
+        day: entry.day,
+        startTime: String(entry.start_time).slice(0, 5),
+        endTime: String(entry.end_time).slice(0, 5),
+        room: entry.room || '',
+        faculty: entry.faculty || '',
+        color: 'blue'
+      }));
+      activeDays = [...new Set(schedule.map(entry => entry.day))];
+      uploadZone.hidden = true;
+      output.hidden = false;
+      renderGrid();
+      updateDashboard();
+    } catch (_) {
+      // Keep the local cache visible when the backend is unavailable.
+    }
   }
 
   function updateDashboard() {
@@ -631,7 +899,7 @@
     const p = document.createElement('p'); p.className = 'tt-error-msg'; p.textContent = msg;
     uploadZone.appendChild(p);
   }
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
   /* Init */
   loadSaved();
