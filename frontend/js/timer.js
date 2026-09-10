@@ -75,6 +75,9 @@
   const taskInput = document.getElementById('session-task-input');
   const saveBtn = document.getElementById('session-save-btn');
   const skipBtn = document.getElementById('session-skip-btn');
+  const courseSelect = document.getElementById('session-course-select');
+  const assignmentSelect = document.getElementById('session-assignment-select');
+  const sessionHistory = { items: null };
   let lastSessionDuration = 0;
 
   function loadHistory() {
@@ -89,7 +92,7 @@
   function renderHistory() {
     if (!historyList) return;
     try {
-      const history = loadHistory();
+      const history = sessionHistory.items || loadHistory();
       if (history.length === 0) {
         historyList.innerHTML = window.States.empty(
           'ph ph-clock-countdown',
@@ -99,7 +102,7 @@
         return;
       }
       historyList.innerHTML = history.slice().reverse().map(h => {
-        const date = new Date(h.date);
+        const date = new Date(h.date || h.start_time);
         const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         return `
@@ -116,8 +119,9 @@
       console.error('Session history render error:', e);
       historyList.innerHTML = window.States.error(
         "Couldn't load session history.",
-        'window._timerHistoryRender()'
+        'timer-retry-btn'
       );
+      document.getElementById('timer-retry-btn')?.addEventListener('click', renderHistory);
     }
   }
 
@@ -134,6 +138,7 @@
     modalOverlay.classList.remove('hidden');
     taskInput.value = '';
     taskInput.focus();
+    loadSessionContext();
   }
 
   function hideModal() {
@@ -141,23 +146,71 @@
     setPhase(!isFocus); // switch phase to break
   }
 
-  function saveSession(taskName) {
+  async function loadSessionContext() {
+    if (!window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const [courses, assignments] = await Promise.all([
+        window.ScholarisApi.getCourses(),
+        window.ScholarisApi.getAssignments()
+      ]);
+      courseSelect.innerHTML = '<option value="">No course association</option>' + courses.map(course => `<option value="${course.id}">${escapeHtml(course.name)}</option>`).join('');
+      assignmentSelect.innerHTML = '<option value="">No assignment association</option>' + assignments.filter(task => !task.is_completed).map(task => `<option value="${task.id}">${escapeHtml(task.title)}</option>`).join('');
+    } catch (error) {
+      console.warn('Could not load study context:', error.message);
+    }
+  }
+
+  async function syncStudyData() {
+    if (!window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const [sessions, stats, suggestions] = await Promise.all([
+        window.ScholarisApi.getStudySessions(),
+        window.ScholarisApi.getStudyStats(),
+        window.ScholarisApi.getStudySuggestions()
+      ]);
+      sessionHistory.items = sessions.map(session => ({ ...session, date: session.start_time, duration: Math.round(session.duration / 60), task: '' }));
+      renderHistory();
+      document.getElementById('study-daily-stat').textContent = `${stats.daily} min`;
+      document.getElementById('study-weekly-stat').textContent = `${stats.weekly} min`;
+      document.getElementById('study-monthly-stat').textContent = `${stats.monthly} min`;
+      document.getElementById('study-streak-stat').textContent = `${stats.streak_days} days`;
+      document.getElementById('study-goal-stat').textContent = `Weekly goal: ${stats.goal_progress_minutes} / ${stats.goal_minutes} minutes`;
+      document.getElementById('study-suggestions-list').innerHTML = suggestions.length
+        ? suggestions.map(item => `<li class="mock-list-item"><strong>${escapeHtml(item.title)}</strong><span class="text-secondary">${escapeHtml(item.reason)} · ${item.duration_minutes} min</span></li>`).join('')
+        : '<li class="mock-list-item empty-state">No urgent study recommendations.</li>';
+      window.dispatchEvent(new CustomEvent('scholaris:study-updated'));
+    } catch (error) {
+      console.warn('Could not load study analytics:', error.message);
+    }
+  }
+
+  async function saveSession(taskName) {
+    if (window.ScholarisApi?.isAuthenticated()) {
+      try {
+        await window.ScholarisApi.createStudySession({
+          start_time: new Date(Date.now() - lastSessionDuration * 60000).toISOString(),
+          duration: lastSessionDuration * 60,
+          course_id: courseSelect.value ? Number(courseSelect.value) : null,
+          assignment_id: assignmentSelect.value ? Number(assignmentSelect.value) : null
+        });
+        await syncStudyData();
+        return;
+      } catch (error) {
+        window.showToast?.(`Backend save failed: ${error.message}`, 'error');
+      }
+    }
     const history = loadHistory();
-    history.push({
-      duration: lastSessionDuration,
-      task: taskName,
-      date: new Date().toISOString()
-    });
+    history.push({ duration: lastSessionDuration, task: taskName, date: new Date().toISOString() });
     saveHistory(history);
   }
 
-  saveBtn?.addEventListener('click', () => {
-    saveSession(taskInput.value.trim());
+  saveBtn?.addEventListener('click', async () => {
+    await saveSession(taskInput.value.trim());
     hideModal();
   });
 
-  skipBtn?.addEventListener('click', () => {
-    saveSession('');
+  skipBtn?.addEventListener('click', async () => {
+    await saveSession('');
     hideModal();
   });
 
@@ -209,4 +262,6 @@
   // Initial render
   updateDisplay();
   renderHistory();
+  syncStudyData();
+  window.addEventListener('scholaris:auth-changed', syncStudyData);
 })();
