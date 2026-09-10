@@ -50,7 +50,7 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" data-target="cgpa">
-            <i class="ph-fill ph-calculator" aria-hidden="true"></i> CGPA Calculator
+            <i class="ph-fill ph-chart-line-up" aria-hidden="true"></i> Academic Records
           </a>
         </li>
         <li class="nav-item">
@@ -144,6 +144,40 @@
             </ul>
           </article>
         </div>
+
+        <article class="card mt-1-5">
+          <header><h2 class="card-title">Your progress</h2></header>
+          <div class="dashboard-grid">
+            <div><p class="card-subtitle text-secondary">Study time</p><p id="dashboard-study-minutes" class="stat-value">0 min</p></div>
+            <div><p class="card-subtitle text-secondary">Attendance</p><p id="dashboard-attendance" class="stat-value">0%</p></div>
+            <div><p class="card-subtitle text-secondary">Due soon</p><p id="dashboard-due-soon" class="stat-value">0</p></div>
+            <div><p class="card-subtitle text-secondary">Low attendance</p><p id="dashboard-low-attendance" class="stat-value">0</p></div>
+            <div><p class="card-subtitle text-secondary">Productivity</p><p id="dashboard-productivity-score" class="stat-value">0/100</p></div>
+            <div><p class="card-subtitle text-secondary">Study consistency</p><p id="dashboard-consistency-stat" class="stat-value">0/7 days</p></div>
+          </div>
+        </article>
+
+        <div class="dashboard-grid mt-1-5">
+          <article class="card">
+            <header><h2 class="card-title"><i class="ph-fill ph-lightbulb" aria-hidden="true"></i> Recommended next</h2></header>
+            <ul class="mock-list" id="dashboard-recommendations"><li class="mock-list-item empty-state">Connect your account to calculate recommendations.</li></ul>
+          </article>
+          <article class="card">
+            <header><h2 class="card-title"><i class="ph-fill ph-warning" aria-hidden="true"></i> Attendance risk</h2></header>
+            <ul class="mock-list" id="dashboard-attendance-risks"><li class="mock-list-item empty-state">No attendance risks detected.</li></ul>
+          </article>
+        </div>
+
+        <div class="dashboard-grid mt-1-5">
+          <article class="card">
+            <header><h2 class="card-title">Workload distribution</h2></header>
+            <ul class="mock-list" id="dashboard-workload"><li class="mock-list-item empty-state">No pending workload.</li></ul>
+          </article>
+          <article class="card">
+            <header><h2 class="card-title">Academic trend</h2></header>
+            <ul class="mock-list" id="dashboard-academic-trend"><li class="mock-list-item empty-state">Add graded semesters to see your trend.</li></ul>
+          </article>
+        </div>
       </section>
 
       <!-- ── Timetable ── -->
@@ -178,6 +212,21 @@
               <i class="ph ph-info" aria-hidden="true"></i> Review the extracted schedule below. Click any cell to edit.
             </p>
             <div class="tt-action-btns">
+              <label class="tt-view-control">View
+                <select id="tt-view-mode" aria-label="Timetable view">
+                  <option value="week">Week</option>
+                  <option value="day">Day</option>
+                </select>
+              </label>
+              <label class="tt-view-control">Day
+                <select id="tt-view-day" aria-label="Timetable day">
+                  <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+                  <option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+                </select>
+              </label>
+              <button class="btn btn-secondary" id="tt-duplicate-week" type="button" title="Duplicate this weekly schedule into another semester">
+                <i class="ph ph-copy" aria-hidden="true"></i> Duplicate Week
+              </button>
               <button class="btn btn-secondary" id="tt-reupload-btn">
                 <i class="ph ph-upload-simple" aria-hidden="true"></i> Re-upload
               </button>
@@ -186,6 +235,8 @@
               </button>
             </div>
           </div>
+
+          <p class="tt-gap-summary" id="tt-gap-summary" aria-live="polite"></p>
 
           <!-- Weekly grid -->
           <div class="tt-grid-wrapper">
@@ -343,19 +394,36 @@
             </header>
             <p class="mb-1 text-secondary">Great job! What did you work on during this focus session?</p>
             <input type="text" id="session-task-input" class="form-control" placeholder="e.g. Studied Calculus Chapter 4..." aria-label="Session task">
+            <label class="form-label mt-1" for="session-course-select">Course</label>
+            <select id="session-course-select" class="form-control"><option value="">No course association</option></select>
+            <label class="form-label mt-1" for="session-assignment-select">Assignment</label>
+            <select id="session-assignment-select" class="form-control"><option value="">No assignment association</option></select>
             <footer class="flex-end mt-1-5">
               <button class="btn btn-secondary" id="session-skip-btn">Skip</button>
               <button class="btn" id="session-save-btn">Save Session</button>
             </footer>
           </dialog>
         </div>
+
+        <article class="card mt-1-5">
+          <header><h2 class="card-title">Study analytics</h2></header>
+          <div class="dashboard-grid">
+            <div><p class="card-subtitle text-secondary">Today</p><p id="study-daily-stat" class="stat-value">0 min</p></div>
+            <div><p class="card-subtitle text-secondary">This week</p><p id="study-weekly-stat" class="stat-value">0 min</p></div>
+            <div><p class="card-subtitle text-secondary">This month</p><p id="study-monthly-stat" class="stat-value">0 min</p></div>
+            <div><p class="card-subtitle text-secondary">Streak</p><p id="study-streak-stat" class="stat-value">0 days</p></div>
+          </div>
+          <p id="study-goal-stat" class="text-secondary mt-1"></p>
+          <h3 class="card-subtitle mt-1">Suggested next</h3>
+          <ul class="mock-list" id="study-suggestions-list"><li class="mock-list-item empty-state">Connect your account to see recommendations.</li></ul>
+        </article>
       </section>
 
-      <!-- ── CGPA Calculator ── -->
+      <!-- ── Academic Records ── -->
       <section id="cgpa" class="section">
         <header class="section-header">
-          <h1 class="section-title">CGPA / SGPA Calculator</h1>
-          <p class="section-subtitle">Add semesters and subjects to compute your SGPA and CGPA.</p>
+          <h1 class="section-title">Academic Records</h1>
+          <p class="section-subtitle">Store semester subjects, credits, grades, and track your SGPA and CGPA over time.</p>
         </header>
         
         <div id="semesters-container"></div>
@@ -363,6 +431,9 @@
         <div class="mb-2">
           <button class="btn btn-secondary" id="add-semester-btn">
             <i class="ph ph-plus" aria-hidden="true"></i> Add Semester
+          </button>
+          <button class="btn" id="save-cgpa-btn">
+            <i class="ph ph-cloud-arrow-up" aria-hidden="true"></i> Save to account
           </button>
         </div>
 
@@ -373,6 +444,16 @@
           <div class="cgpa-result-box">
             <span id="overall-cgpa-result">—</span>
           </div>
+        </article>
+
+        <article class="card mt-1-5">
+          <header><h2 class="card-title">Plan your next semester</h2></header>
+          <div class="dashboard-grid">
+            <div><label class="form-label" for="target-cgpa-input">Target CGPA</label><input id="target-cgpa-input" class="form-control" type="number" min="0.01" max="10" step="0.01" value="9.0"></div>
+            <div><label class="form-label" for="target-credits-input">Next-semester credits</label><input id="target-credits-input" class="form-control" type="number" min="1" max="60" value="20"></div>
+          </div>
+          <button class="btn btn-secondary mt-1" id="target-cgpa-btn"><i class="ph ph-target" aria-hidden="true"></i> Calculate required SGPA</button>
+          <p id="target-cgpa-result" class="text-secondary mt-1" aria-live="polite"></p>
         </article>
       </section>
 
@@ -451,10 +532,10 @@
   <script src="js/toast.js"></script>
   <script src="js/theme.js"></script>
   <script src="js/nav.js"></script>
+  <script src="js/dashboard.js"></script>
   <script src="js/assignments.js"></script>
   <script src="js/cgpa.js"></script>
   <script src="js/timer.js"></script>
-  <script src="js/timetable.js"></script>
   <script src="js/attendance.js"></script>
   <script src="js/accessibility.js"></script>
 
@@ -549,5 +630,6 @@
       </form>
     </dialog>
   </div>
+  <script src="js/timetable.js"></script>
 </body>
 </html>
