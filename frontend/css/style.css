@@ -48,6 +48,10 @@
   font-family: 'Inter', sans-serif;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* ── Body ── */
 body {
   background: linear-gradient(135deg, var(--bg-color) 0%, var(--bg-gradient-end) 100%, var(--bg-color) 200%);
@@ -59,6 +63,7 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  overflow-x: hidden;
   transition: color 0.3s ease;
 }
 
@@ -71,8 +76,9 @@ body {
 /* ── Sidebar ── */
 .sidebar {
   width: 100%;
+  min-width: 0;
   background-color: var(--sidebar-bg);
-  min-height: 72px;
+  min-height: 36px;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -110,23 +116,40 @@ body {
 .nav-links {
   list-style: none;
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  overflow-x: auto;
+  gap: 4px;
+  overflow-x: hidden;
   overflow-y: hidden;
 }
 
 .nav-item {
   margin-bottom: 0;
+  min-width: 0;
+}
+
+.sidebar-footer {
+  min-width: 0;
+  padding: 10px 0 !important;
+}
+
+.sidebar-footer .nav-links {
+  gap: 4px !important;
+}
+
+.sidebar-footer .nav-link {
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
+  gap: 8px;
+  padding: 6px 10px;
   color: var(--text-secondary);
   text-decoration: none;
   border-radius: 8px;
@@ -171,11 +194,13 @@ body.sidebar-open .sidebar-overlay {
 
 /* ── Topbar ── */
 .topbar {
-  height: 60px;
+  min-height: 60px;
+  height: auto;
   padding: 0 32px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 16px;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -184,6 +209,7 @@ body.sidebar-open .sidebar-overlay {
   position: sticky;
   top: 0;
   z-index: 5;
+  flex-shrink: 0;
 }
 
 .hamburger-btn {
@@ -210,6 +236,8 @@ body.sidebar-open .sidebar-overlay {
   border-radius: 24px;
   padding: 10px 20px;
   width: 320px;
+  max-width: 100%;
+  flex: 0 1 320px;
   border: 1px solid var(--border-color);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
@@ -255,6 +283,38 @@ body.sidebar-open .sidebar-overlay {
 
 .theme-toggle:hover i {
   transform: rotate(45deg);
+}
+
+.api-auth {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  min-width: 0;
+}
+
+.api-auth-status {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.api-auth-input {
+  width: 120px;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+
+.api-auth-btn {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 /* ── Content Wrapper ── */
@@ -615,7 +675,17 @@ select.form-control {
 
 .toast-icon { font-size: 1.25rem; }
 .toast-success .toast-icon { color: #10b981; }
+.toast-info .toast-icon    { color: var(--accent-color); }
+.toast-warning .toast-icon { color: #f59e0b; }
 .toast-error .toast-icon   { color: #ef4444; }
+
+.toast-close {
+  margin-left: auto;
+  padding: 2px;
+  color: var(--text-secondary);
+}
+
+.toast-close:hover { color: var(--text-primary); }
 
 .toast-message {
   font-size: 0.9rem;
@@ -734,6 +804,28 @@ select.form-control {
   animation: spin 0.75s linear infinite;
 }
 
+.state-skeleton {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.5fr;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.state-skeleton span {
+  height: 0.8rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--border-color), rgba(128, 128, 128, 0.12), var(--border-color));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
 /* Error */
 .error-block {
   border: 1.5px solid rgba(239, 68, 68, 0.25);
@@ -774,6 +866,15 @@ select.form-control {
   font-size: 0.85rem;
   padding: 8px 16px;
 }
+
+.btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.btn-danger:hover { background: #b91c1c; }
+
+.confirm-dialog { max-width: 440px; }
 
 /* ============================================================
    Inline Form Validation
