@@ -23,12 +23,13 @@ window.Validate = (function () {
     const msg = document.createElement('span');
     msg.className = 'field-error-msg';
     msg.setAttribute('role', 'alert');
+    msg.id = `${field.id || 'field'}-error`;
     msg.textContent = message;
 
     // Insert after the field
     field.after(msg);
     field.setAttribute('aria-invalid', 'true');
-    field.setAttribute('aria-describedby', msg.id || '');
+    field.setAttribute('aria-describedby', msg.id);
   }
 
   /** Remove error state from a field */
@@ -37,6 +38,7 @@ window.Validate = (function () {
     field.removeAttribute('aria-invalid');
     const msg = field.parentElement?.querySelector('.field-error-msg');
     if (msg) msg.remove();
+    field.removeAttribute('aria-describedby');
   }
 
   /** Clear all errors inside a container element */
@@ -44,8 +46,15 @@ window.Validate = (function () {
     container.querySelectorAll('.field-error').forEach(el => {
       el.classList.remove('field-error');
       el.removeAttribute('aria-invalid');
+      el.removeAttribute('aria-describedby');
     });
     container.querySelectorAll('.field-error-msg').forEach(el => el.remove());
+  }
+
+  function focusFirstError(container) {
+    const first = container.querySelector('.field-error');
+    first?.focus();
+    return first;
   }
 
   /**
@@ -116,5 +125,5 @@ window.Validate = (function () {
     return str;
   }
 
-  return { setError, clearError, clearAll, isValidTimeRange, isValidDate, isValidFutureDate };
+  return { setError, clearError, clearAll, focusFirstError, isValidTimeRange, isValidDate, isValidFutureDate };
 })();
