@@ -13,7 +13,8 @@
     monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday',
     thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday'
   };
-  const STORAGE_KEY = 'scholaris_timetable_v1';
+  const state = window.ScholarisState;
+  const stateApi = window.ScholarisStateApi;
 
   /* DOM refs */
   const uploadZone   = document.getElementById('tt-upload-zone');
@@ -27,6 +28,11 @@
   const saveBtn      = document.getElementById('tt-save-btn');
   const reuploadBtn  = document.getElementById('tt-reupload-btn');
   const addSlotBtn   = document.getElementById('tt-add-slot-btn');
+  const searchInput = document.getElementById('tt-search');
+  const courseFilter = document.getElementById('tt-course-filter');
+  const roomFilter = document.getElementById('tt-room-filter');
+  const facultyFilter = document.getElementById('tt-faculty-filter');
+  const freeSummary = document.getElementById('tt-free-summary');
 
   // Modal elements
   const modalOverlay = document.getElementById('tt-modal-overlay');
@@ -53,6 +59,8 @@
   let activeDays = [...DAYS];
   let viewMode = 'week';
   let selectedViewDay = 'Monday';
+  const filters = { search: '', course: '', room: '', faculty: '' };
+  let resizeState = null;
 
   /* ===== 1. UPLOAD ZONE ===== */
   uploadZone.addEventListener('click', () => fileInput.click());
@@ -77,6 +85,13 @@
     selectedViewDay = event.target.value;
     renderGrid();
   });
+  [searchInput, courseFilter, roomFilter, facultyFilter].forEach(control => control?.addEventListener('input', () => {
+    filters.search = searchInput?.value.trim().toLowerCase() || '';
+    filters.course = courseFilter?.value || '';
+    filters.room = roomFilter?.value || '';
+    filters.faculty = facultyFilter?.value || '';
+    renderGrid();
+  }));
   window.addEventListener('scholaris:sync-requested', () => {
     if (window.ScholarisApi?.isAuthenticated()) loadRemoteSchedule();
   });
@@ -421,6 +436,7 @@
 
   /* ===== 7. GRID RENDERER ===== */
   function renderGrid() {
+    refreshFilterOptions();
     gridHead.innerHTML = '';
     const trH = document.createElement('tr');
     const th0 = document.createElement('th'); th0.textContent = 'Time'; th0.className = 'tt-th-time'; trH.appendChild(th0);
@@ -451,11 +467,15 @@
       tr.appendChild(tdT);
 
       for (const day of visibleDays) {
-        const td = document.createElement('td'); 
+        const td = document.createElement('td');
         td.className = 'tt-td-slot';
+        td.dataset.day = day;
+        td.dataset.start = start;
+        td.dataset.end = end;
+        addDropTargetHandlers(td);
         
         // Find events for this day and time block
-        const events = schedule.filter(e => e.day === day && e.startTime === start && e.endTime === end);
+        const events = schedule.filter(e => e.day === day && e.startTime === start && e.endTime === end && matchesFilters(e));
         
         if (events.length > 0) {
           events.forEach(e => td.appendChild(buildEventChip(e)));
@@ -467,6 +487,100 @@
       gridBody.appendChild(tr);
     });
     refreshGapSummary();
+    refreshFreeSummary();
+  }
+
+  function matchesFilters(event) {
+    const haystack = `${event.subject || ''} ${event.room || ''} ${event.faculty || ''}`.toLowerCase();
+    return (!filters.search || haystack.includes(filters.search))
+      && (!filters.course || event.subject === filters.course)
+      && (!filters.room || event.room === filters.room)
+      && (!filters.faculty || event.faculty === filters.faculty);
+  }
+
+  function refreshFilterOptions() {
+    const options = [
+      [courseFilter, [...new Set(schedule.map(event => event.subject).filter(Boolean))].sort()],
+      [roomFilter, [...new Set(schedule.map(event => event.room).filter(Boolean))].sort()],
+      [facultyFilter, [...new Set(schedule.map(event => event.faculty).filter(Boolean))].sort()]
+    ];
+    options.forEach(([select, values]) => {
+      if (!select) return;
+      const selected = select.value;
+      select.innerHTML = `<option value="">All ${select === courseFilter ? 'courses' : select === roomFilter ? 'rooms' : 'faculty'}</option>`;
+      values.forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value;
+        select.appendChild(option);
+      });
+      select.value = values.includes(selected) ? selected : '';
+    });
+  }
+
+  function addDropTargetHandlers(cell) {
+    cell.addEventListener('dragover', event => {
+      event.preventDefault();
+      cell.classList.add('tt-drop-target');
+    });
+    cell.addEventListener('dragleave', () => cell.classList.remove('tt-drop-target'));
+    cell.addEventListener('drop', async event => {
+      event.preventDefault();
+      cell.classList.remove('tt-drop-target');
+      const id = event.dataTransfer.getData('text/plain');
+      const item = schedule.find(entry => String(entry.id) === id);
+      if (!item || (item.day === cell.dataset.day && item.startTime === cell.dataset.start)) return;
+      const target = { day: cell.dataset.day, startTime: cell.dataset.start, endTime: addDuration(cell.dataset.start, duration(item)) };
+      if (hasConflict({ ...item, ...target }, item.id)) {
+        window.showToast?.('That move conflicts with another class.', 'error');
+        return;
+      }
+      if (!await window.confirmAction(`Move ${item.subject} to ${target.day} at ${format12H(target.startTime)}?`, { title: 'Move class', confirmLabel: 'Move class' })) return;
+      Object.assign(item, target);
+      persistScheduleState();
+      renderGrid();
+      window.showToast?.('Class moved. Save the schedule to sync it.', 'success');
+    });
+  }
+
+  function duration(event) {
+    return Math.max(30, timeToMinutes(event.endTime) - timeToMinutes(event.startTime));
+  }
+
+  function timeToMinutes(value) {
+    const [hours, minutes] = String(value || '').split(':').map(Number);
+    return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : 0;
+  }
+
+  function minutesToTime(total) {
+    const safe = Math.max(0, Math.min(total, 23 * 60 + 59));
+    return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
+  }
+
+  function addDuration(start, minutes) {
+    return minutesToTime(timeToMinutes(start) + minutes);
+  }
+
+  function hasConflict(candidate, ignoredId) {
+    return schedule.some(event => String(event.id) !== String(ignoredId) && event.day === candidate.day && candidate.startTime < event.endTime && candidate.endTime > event.startTime);
+  }
+
+  function persistScheduleState() {
+    stateApi.set('timetable', schedule, { persist: true });
+    stateApi.set('timetableActiveDays', activeDays, { persist: true, silent: true });
+  }
+
+  function refreshFreeSummary() {
+    if (!freeSummary) return;
+    const day = viewMode === 'day' ? selectedViewDay : new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
+    const events = schedule.filter(event => event.day === day).sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+    const gaps = [];
+    for (let index = 1; index < events.length; index += 1) {
+      const start = timeToMinutes(events[index - 1].endTime);
+      const end = timeToMinutes(events[index].startTime);
+      if (end - start >= 30) gaps.push(`${format12H(events[index - 1].endTime)} - ${format12H(events[index].startTime)}`);
+    }
+    freeSummary.textContent = gaps.length ? `${day} free periods: ${gaps.join(', ')}` : `${day}: no free period of 30 minutes between classes.`;
   }
 
   async function refreshGapSummary() {
@@ -531,12 +645,62 @@
   function buildEventChip(event) {
     const wrap = document.createElement('div');
     wrap.className = `tt-chip tt-chip-${event.color || 'blue'}`;
+    wrap.draggable = true;
+    wrap.dataset.eventId = event.id;
     wrap.innerHTML = `
       <div style="font-weight: 600; font-size: 0.85rem;">${escapeHtml(event.subject)}</div>
       ${event.room ? `<div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;"><i class="ph ph-map-pin"></i> ${escapeHtml(event.room)}</div>` : ''}
+      <span class="tt-resize-handle" title="Drag to resize class"></span>
     `;
-    wrap.addEventListener('click', () => openModal(event.id));
+    wrap.addEventListener('dragstart', dragEvent => {
+      if (resizeState) { dragEvent.preventDefault(); return; }
+      dragEvent.dataTransfer.effectAllowed = 'move';
+      dragEvent.dataTransfer.setData('text/plain', String(event.id));
+      wrap.classList.add('is-dragging');
+    });
+    wrap.addEventListener('dragend', () => wrap.classList.remove('is-dragging'));
+    wrap.querySelector('.tt-resize-handle').addEventListener('mousedown', resizeStart(event));
+    wrap.addEventListener('click', clickEvent => {
+      if (!clickEvent.target.closest('.tt-resize-handle')) openModal(event.id);
+    });
     return wrap;
+  }
+
+  function resizeStart(event) {
+    return pointerEvent => {
+      pointerEvent.preventDefault();
+      pointerEvent.stopPropagation();
+      resizeState = { event, startY: pointerEvent.clientY, originalEnd: timeToMinutes(event.endTime) };
+      document.addEventListener('mousemove', resizeMove);
+      document.addEventListener('mouseup', resizeEnd, { once: true });
+    };
+  }
+
+  function resizeMove(pointerEvent) {
+    if (!resizeState) return;
+    const delta = Math.round((pointerEvent.clientY - resizeState.startY) / 10) * 30;
+    const nextEnd = minutesToTime(resizeState.originalEnd + delta);
+    if (timeToMinutes(nextEnd) <= timeToMinutes(resizeState.event.startTime)) return;
+    resizeState.event.endTime = nextEnd;
+    renderGrid();
+  }
+
+  async function resizeEnd() {
+    document.removeEventListener('mousemove', resizeMove);
+    if (!resizeState) return;
+    const event = resizeState.event;
+    resizeState = null;
+    if (hasConflict(event, event.id)) {
+      window.showToast?.('That duration conflicts with another class.', 'error');
+      await loadSaved();
+      return;
+    }
+    if (await window.confirmAction(`Resize ${event.subject} to end at ${format12H(event.endTime)}?`, { title: 'Resize class', confirmLabel: 'Resize class' })) {
+      persistScheduleState();
+      window.showToast?.('Class duration updated. Save the schedule to sync it.', 'success');
+    } else {
+      await loadSaved();
+    }
   }
 
   function buildEmptyChip(day, start, end) {
@@ -716,7 +880,8 @@
         return;
       }
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ schedule, activeDays }));
+    stateApi.set('timetable', schedule, { persist: true });
+    stateApi.set('timetableActiveDays', activeDays, { persist: true });
     const orig = saveBtn.innerHTML;
     saveBtn.innerHTML = '<i class="ph ph-check"></i> Saved!';
     saveBtn.classList.add('btn-saved');
@@ -758,10 +923,8 @@
       return;
     }
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const { schedule: s, activeDays: d } = parsed;
+        const s = state.timetable;
+        const d = state.timetableActiveDays;
         if (Array.isArray(s) && s.length) {
           // Migration from old array-of-rows format to flat events format
           if (s[0].slots) {
@@ -787,7 +950,6 @@
           activeDays = d || [...DAYS];
           uploadZone.hidden = true; renderGrid(); output.hidden = false;
         }
-      }
     } catch (_) {}
     updateDashboard();
     if (window.ScholarisApi?.isAuthenticated()) await loadRemoteSchedule();
@@ -812,6 +974,8 @@
         color: 'blue'
       }));
       activeDays = [...new Set(schedule.map(entry => entry.day))];
+      stateApi.set('timetable', schedule, { persist: true });
+      stateApi.set('timetableActiveDays', activeDays, { persist: true });
       uploadZone.hidden = true;
       output.hidden = false;
       renderGrid();
