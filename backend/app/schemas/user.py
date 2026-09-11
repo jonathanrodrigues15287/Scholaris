@@ -1,11 +1,22 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+import re
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 class UserCreate(BaseModel):
 	email: EmailStr
 	name: str | None = Field(default=None, min_length=1, max_length=120)
 	full_name: str | None = Field(default=None, min_length=1, max_length=120)
-	password: str = Field(min_length=8, max_length=128)
+	password: str = Field(min_length=12, max_length=128)
+
+	@field_validator("password")
+	@classmethod
+	def validate_password_strength(cls, value: str) -> str:
+		if not re.search(r"[A-Z]", value) or not re.search(r"[a-z]", value):
+			raise ValueError("Password must include upper- and lowercase letters")
+		if not re.search(r"\d", value) or not re.search(r"[^A-Za-z0-9]", value):
+			raise ValueError("Password must include a number and a symbol")
+		return value
 
 	@model_validator(mode="after")
 	def require_name(self):
@@ -20,8 +31,10 @@ class UserRead(BaseModel):
 	id: int
 	email: EmailStr
 	name: str
+	minimum_attendance_threshold: float
 
 
-class Token(BaseModel):
-	access_token: str
-	token_type: str = "bearer"
+class AuthSession(BaseModel):
+	authenticated: bool = True
+	user: UserRead
+
