@@ -2,7 +2,7 @@ from datetime import date as date_type
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, String, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -14,6 +14,10 @@ class Attendance(Base):
 		UniqueConstraint("user_id", "course_id", "date", name="uq_attendance_user_course_date"),
 		Index("ix_attendance_user_date", "user_id", "date"),
 		Index("ix_attendance_user_status_date", "user_id", "status", "date"),
+		CheckConstraint(
+			"status IN ('present', 'absent', 'holiday', 'exam')",
+			name="ck_attendance_status",
+		),
 	)
 
 	id: Mapped[int] = mapped_column(primary_key=True)
