@@ -1,7 +1,8 @@
 // attendance.js — track daily lecture attendance with holiday/exam day markers
 
 (function () {
-  const STORAGE_KEY = 'scholaris_attendance';
+  const state = window.ScholarisState;
+  const stateApi = window.ScholarisStateApi;
   const list = document.getElementById('attendance-list');
   const dateInput = document.getElementById('att-date');
   const statusSelect = document.getElementById('att-status');
@@ -11,8 +12,7 @@
   const absentCount = document.getElementById('att-absent-count');
   const holidayCount = document.getElementById('att-holiday-count');
   const examCount = document.getElementById('att-exam-count');
-  let remoteRecords = null;
-
+  const forecastList = document.getElementById('attendance-forecast-list');
   let datePicker = null;
   if (typeof flatpickr !== 'undefined' && dateInput) {
     datePicker = flatpickr(dateInput, {
@@ -26,11 +26,11 @@
   }
 
   function load() {
-    return remoteRecords || JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return state.attendance;
   }
 
   function save(records) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    stateApi.set('attendance', records, { persist: true });
     render();
     updateStats();
   }
@@ -52,14 +52,7 @@
     const date = new Date(dateStr);
     const dayStr = date.toLocaleDateString('en-US', { weekday: 'long' });
 
-    let schedule = [];
-    try {
-      const ttRaw = localStorage.getItem('scholaris_timetable_v1');
-      if (ttRaw) {
-        const parsed = JSON.parse(ttRaw);
-        if (parsed && parsed.schedule) schedule = parsed.schedule;
-      }
-    } catch (e) {}
+    const schedule = state.timetable;
 
     const subjects = [];
     let lastSubject = null;
@@ -190,14 +183,73 @@
     examCount.textContent = stats.exam;
   }
 
+  function percentage(present, total) {
+    return total ? (present / total) * 100 : 0;
+  }
+
+  function project(present, total, change) {
+    const nextPresent = present + (change > 0 ? change : 0);
+    const nextTotal = total + Math.abs(change);
+    return percentage(nextPresent, nextTotal);
+  }
+
+  function forecastItem(course, prediction, counts) {
+    const present = Number(counts?.present || 0);
+    const absent = Number(counts?.absent || 0);
+    const total = present + absent;
+    const current = Number(prediction?.percentage ?? percentage(present, total));
+    const target = Number(prediction?.threshold ?? 75);
+    const afterPresent = total ? project(present, total, 1) : 100;
+    const afterFive = total ? project(present, total, 5) : 100;
+    const afterTwoAbsent = total ? project(present, total, -2) : 0;
+    const safeAbsences = prediction?.safe_absences;
+    const attendNext = prediction?.attend_next;
+    const warning = prediction?.warning || current < target;
+    return `<li class="mock-list-item attendance-forecast-item">
+      <span class="attendance-forecast-course"><strong>${escapeHtml(course)}</strong><small>${present}/${total} attended</small></span>
+      <span class="attendance-forecast-metric"><strong>${current.toFixed(1)}%</strong><small>Current</small></span>
+      <span class="attendance-forecast-metric"><strong>${afterPresent.toFixed(1)}%</strong><small>After +1</small></span>
+      <span class="attendance-forecast-metric"><strong>${afterFive.toFixed(1)}%</strong><small>After +5</small></span>
+      <span class="attendance-forecast-metric ${afterTwoAbsent < target ? 'is-warning' : ''}"><strong>${afterTwoAbsent.toFixed(1)}%</strong><small>After -2</small></span>
+      <span class="attendance-forecast-metric ${warning ? 'is-warning' : ''}"><strong>${warning && attendNext != null ? `+${attendNext}` : `${target.toFixed(0)}%`}</strong><small>${warning && attendNext != null ? 'presents needed' : `Target · ${safeAbsences ?? 0} safe misses`}</small></span>
+    </li>`;
+  }
+
+  function renderForecast(predictions, subjectStats, courses) {
+    if (!forecastList) return;
+    const names = new Map((courses || []).map(course => [course.id, course.name]));
+    const counts = new Map((subjectStats || []).map(item => [item.course_id, item]));
+    const items = (predictions || []).map(prediction => forecastItem(
+      names.get(prediction.course_id) || counts.get(prediction.course_id)?.course_name || 'Course',
+      prediction,
+      counts.get(prediction.course_id)
+    ));
+    forecastList.innerHTML = items.length ? items.join('') : '<li class="mock-list-item empty-state"><i class="ph ph-chart-line-up" aria-hidden="true"></i>No course attendance data yet.</li>';
+  }
+
+  async function loadForecast() {
+    if (!forecastList || !window.ScholarisApi?.isAuthenticated()) return;
+    try {
+      const [predictions, subjectStats, courses] = await Promise.all([
+        window.ScholarisApi.getAttendancePredictions(),
+        window.ScholarisApi.getAttendanceSubjectStats(),
+        window.ScholarisApi.getCourses()
+      ]);
+      renderForecast(predictions, subjectStats, courses);
+    } catch (error) {
+      console.warn('Attendance forecast unavailable:', error.message);
+    }
+  }
+
   async function syncFromBackend() {
     if (!window.ScholarisApi?.isAuthenticated()) return;
     try {
       const [records, courses] = await Promise.all([window.ScholarisApi.getAttendance(), window.ScholarisApi.getCourses()]);
       const names = new Map(courses.map(course => [course.id, course.name]));
-      remoteRecords = records.map(record => ({ ...record, date: record.date, courseId: record.course_id, course: names.get(record.course_id) || 'Course' }));
+      stateApi.set('attendance', records.map(record => ({ ...record, date: record.date, courseId: record.course_id, course: names.get(record.course_id) || 'Course' })), { persist: true });
       render();
       updateStats();
+      loadForecast();
     } catch (error) {
       console.warn('Attendance backend sync unavailable:', error.message);
     }
@@ -306,6 +358,7 @@
     statusSelect.value = 'present';
     updateCourseDropdown(date);
     courseInput.focus();
+    loadForecast();
   }
 
   // Clear errors on field change
@@ -325,4 +378,5 @@
   updateStats();
   window.addEventListener('scholaris:auth-changed', syncFromBackend);
   syncFromBackend();
+  loadForecast();
 })();
