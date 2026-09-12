@@ -63,9 +63,7 @@
     body.dataset.themePreference = preference;
     updateButton(preference, theme);
     if (persist) savePreference(preference);
-    window.dispatchEvent(new CustomEvent('scholaris:theme-changed', {
-      detail: { preference, theme }
-    }));
+    window.ScholarisEvents?.emit('theme-changed', { preference, theme });
   }
 
   let preference = getInitialPreference();
