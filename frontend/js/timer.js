@@ -69,7 +69,8 @@
   }
 
   /* ── Session History ── */
-  const STORAGE_KEY = 'scholaris_study_sessions';
+  const state = window.ScholarisState;
+  const stateApi = window.ScholarisStateApi;
   const historyList = document.getElementById('session-history-list');
   const modalOverlay = document.getElementById('session-modal-overlay');
   const taskInput = document.getElementById('session-task-input');
@@ -81,11 +82,11 @@
   let lastSessionDuration = 0;
 
   function loadHistory() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return state.studySessions;
   }
 
   function saveHistory(history) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    stateApi.set('studySessions', history, { persist: true });
     renderHistory();
   }
 
@@ -169,6 +170,7 @@
         window.ScholarisApi.getStudySuggestions()
       ]);
       sessionHistory.items = sessions.map(session => ({ ...session, date: session.start_time, duration: Math.round(session.duration / 60), task: '' }));
+      stateApi.set('studySessions', sessionHistory.items, { persist: true });
       renderHistory();
       document.getElementById('study-daily-stat').textContent = `${stats.daily} min`;
       document.getElementById('study-weekly-stat').textContent = `${stats.weekly} min`;
@@ -178,7 +180,7 @@
       document.getElementById('study-suggestions-list').innerHTML = suggestions.length
         ? suggestions.map(item => `<li class="mock-list-item"><strong>${escapeHtml(item.title)}</strong><span class="text-secondary">${escapeHtml(item.reason)} · ${item.duration_minutes} min</span></li>`).join('')
         : '<li class="mock-list-item empty-state">No urgent study recommendations.</li>';
-      window.dispatchEvent(new CustomEvent('scholaris:study-updated'));
+      window.ScholarisEvents?.emit('study-updated');
     } catch (error) {
       console.warn('Could not load study analytics:', error.message);
     }
