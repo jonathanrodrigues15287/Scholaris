@@ -28,7 +28,7 @@
 
   function writeQueue(queue) {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-    window.dispatchEvent(new CustomEvent('scholaris:sync-state-changed', { detail: getSyncState() }));
+    window.ScholarisEvents?.emit('sync-state-changed', getSyncState());
   }
 
   function getSyncState() {
@@ -120,7 +120,7 @@
     const queue = readQueue().filter(operation => operation.state === 'pending' && operation.userId === currentUserId);
     if (!queue.length) return;
     syncing = true;
-    window.dispatchEvent(new CustomEvent('scholaris:sync-state-changed', { detail: getSyncState() }));
+    window.ScholarisEvents?.emit('sync-state-changed', getSyncState());
     try {
       for (const operation of queue) {
         const current = readQueue().find(item => item.id === operation.id && item.userId === currentUserId);
@@ -147,7 +147,7 @@
       setLastSync();
     } finally {
       syncing = false;
-      window.dispatchEvent(new CustomEvent('scholaris:sync-state-changed', { detail: getSyncState() }));
+      window.ScholarisEvents?.emit('sync-state-changed', getSyncState());
     }
   }
 
@@ -175,16 +175,18 @@
   function saveSession(data) {
     authenticated = true;
     currentUserId = data.user?.id || null;
+    window.ScholarisStateApi?.set('authenticated', true);
     if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-    window.dispatchEvent(new CustomEvent('scholaris:auth-changed'));
+    window.ScholarisEvents?.emit('auth-changed');
   }
 
   function clearSession() {
     authenticated = false;
     currentUserId = null;
+    window.ScholarisStateApi?.set('authenticated', false);
     localStorage.removeItem('scholaris_api_token');
     localStorage.removeItem(USER_KEY);
-    window.dispatchEvent(new CustomEvent('scholaris:auth-changed'));
+    window.ScholarisEvents?.emit('auth-changed');
   }
 
   async function login(email, password) {
@@ -223,6 +225,7 @@
 
   async function getCourses() {
     const page = await request('/courses?page_size=100');
+    window.ScholarisStateApi?.set('courses', page.items);
     return page.items;
   }
 
@@ -249,6 +252,16 @@
 
   async function getAttendance() {
     const page = await request('/attendance?page_size=100');
+    return page.items;
+  }
+
+  async function getAttendancePredictions(courseId = null) {
+    const query = courseId ? `?course_id=${encodeURIComponent(courseId)}` : '';
+    return request(`/attendance/stats/predictions${query}`);
+  }
+
+  async function getAttendanceSubjectStats() {
+    const page = await request('/attendance/stats/subjects?page_size=100');
     return page.items;
   }
 
@@ -382,6 +395,8 @@
     getAssignments,
     getAcademicRecords,
     getAttendance,
+    getAttendancePredictions,
+    getAttendanceSubjectStats,
     getDashboard,
     getStudyGoal,
     getStudySessions,
@@ -455,7 +470,7 @@
 
   window.addEventListener('scholaris:auth-changed', () => {
     setAuthStatus(isAuthenticated() ? 'Backend connected' : 'Offline mode', isAuthenticated());
-    window.dispatchEvent(new CustomEvent('scholaris:sync-requested'));
+    window.ScholarisEvents?.emit('sync-requested');
     flushSyncQueue();
   });
 
