@@ -1,7 +1,8 @@
 // cgpa.js — API-backed academic records with a local offline cache
 
 (function () {
-  const STORAGE_KEY = 'scholaris_cgpa_semesters';
+  const state = window.ScholarisState;
+  const stateApi = window.ScholarisStateApi;
   const semestersContainer = document.getElementById('semesters-container');
   const addSemesterBtn = document.getElementById('add-semester-btn');
   const saveCgpaBtn = document.getElementById('save-cgpa-btn');
@@ -15,19 +16,12 @@
   }
 
   function load() {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) {
-      try {
-        return JSON.parse(data);
-      } catch (e) {
-        return [];
-      }
-    }
+    if (Array.isArray(state.academicRecords)) return state.academicRecords;
     return [{ id: generateId(), subjects: [{ id: generateId(), name: '', credits: '', grade: '' }] }];
   }
 
   function save(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    stateApi.set('academicRecords', data, { persist: true });
   }
 
   // Get current state from DOM
@@ -321,7 +315,7 @@
           grade: course.grade ?? ''
         }))
       }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(semesters));
+      stateApi.set('academicRecords', semesters, { persist: true });
       renderAll();
     } catch (error) {
       console.warn('Could not load academic records:', error);
