@@ -70,6 +70,27 @@ def test_user_login_course_assignment_fetch():
         assert fetch_response.json()["items"][0]["course_id"] == course["id"]
 
 
+def test_user_can_register_and_login_with_username():
+    username = f"student_{uuid4().hex[:12]}"
+    password = "Correct-horse-battery-1!"
+
+    with TestClient(app) as client:
+        register_response = client.post(
+            "/api/v1/auth/register",
+            json={"username": username, "name": "Username Student", "password": password},
+        )
+        assert register_response.status_code == 201
+        assert register_response.json()["username"] == username
+
+        login_response = client.post(
+            "/api/v1/auth/login",
+            data={"username": username, "password": password},
+        )
+        assert login_response.status_code == 200
+        assert login_response.json()["user"]["username"] == username
+        assert client.get("/api/v1/auth/me").json()["username"] == username
+
+
 def _register_and_login(client: TestClient, label: str) -> dict[str, str]:
     email = f"{label}-{uuid4().hex}@example.com"
     password = "Correct-horse-battery-1!"
