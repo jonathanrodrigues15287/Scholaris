@@ -200,12 +200,12 @@
     return data;
   }
 
-  async function register(name, email, password) {
+  async function register(username, password) {
     const data = await request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password })
+      body: JSON.stringify({ username, name: username, password })
     });
-    await login(email, password);
+    await login(username, password);
     return data;
   }
 
@@ -422,7 +422,7 @@
 
   function setAuthStatus(message, authenticated) {
     const status = document.getElementById('api-auth-status');
-    const email = document.getElementById('api-auth-email');
+    const username = document.getElementById('api-auth-username');
     const password = document.getElementById('api-auth-password');
     const loginButton = document.getElementById('api-login-btn');
     const registerButton = document.getElementById('api-register-btn');
@@ -431,7 +431,7 @@
     const sync = getSyncState();
     const syncLabel = sync.status === 'syncing' ? ' · Syncing…' : sync.pending ? ` · ${sync.pending} pending` : sync.failed ? ' · Conflict needs review' : '';
     status.textContent = `${message}${syncLabel}`;
-    email.hidden = authenticated;
+    username.hidden = authenticated;
     password.hidden = authenticated;
     loginButton.hidden = authenticated;
     registerButton.hidden = authenticated;
@@ -439,18 +439,17 @@
   }
 
   async function handleAuth(action) {
-    const email = document.getElementById('api-auth-email').value.trim();
+    const username = document.getElementById('api-auth-username').value.trim();
     const password = document.getElementById('api-auth-password').value;
-    const name = email.split('@')[0] || 'Student';
-    if (!email || password.length < 12) {
-      window.showToast?.('Enter an email and a password of at least 12 characters with upper/lowercase, a number, and a symbol.', 'error');
+    if (!username || password.length < 12) {
+      window.showToast?.('Enter a username and a password of at least 12 characters with upper/lowercase, a number, and a symbol.', 'error');
       return;
     }
     setAuthStatus('Connecting...', false);
     try {
-      if (action === 'register') await register(name, email, password);
-      else await login(email, password);
-      setAuthStatus(`Connected as ${email}`, true);
+      if (action === 'register') await register(username, password);
+      else await login(username, password);
+      setAuthStatus(`Connected as ${username}`, true);
       window.showToast?.('Backend account connected.');
     } catch (error) {
       setAuthStatus('Offline mode', false);
