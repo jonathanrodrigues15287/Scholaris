@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    dashboard.css — Dashboard grid, stat cards, attendance tracker,
    study planner timer & session history
    ============================================================ */
@@ -16,6 +16,96 @@
   font-weight: 700;
 }
 
+.dashboard-next-card {
+  min-height: 190px;
+}
+
+.dashboard-feature-state {
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.dashboard-class-item {
+  gap: 16px;
+}
+
+.dashboard-class-time {
+  min-width: 90px;
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+.dashboard-class-meta,
+.dashboard-next-meta,
+.dashboard-rhythm-main span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.dashboard-next-content {
+  width: 100%;
+  text-align: center;
+}
+
+.dashboard-next-content strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-bottom: 8px;
+}
+
+.dashboard-rhythm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dashboard-rhythm-main strong {
+  display: block;
+  font-size: 2rem;
+  color: var(--accent-color);
+}
+
+.dashboard-progress,
+.dashboard-bar {
+  height: 9px;
+  overflow: hidden;
+  background: var(--border-color);
+  border-radius: 999px;
+}
+
+.dashboard-progress span,
+.dashboard-bar span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent-color);
+  border-radius: inherit;
+  transition: width 0.5s ease;
+}
+
+.dashboard-workload-row,
+.dashboard-trend-row {
+  display: block;
+}
+
+.dashboard-workload-label,
+.dashboard-trend-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.dashboard-trend-bar span {
+  background: #10b981;
+}
+
 /* ── Attendance Grid (form layout) ── */
 .attendance-grid {
   display: grid;
@@ -31,6 +121,46 @@
 
 .attendance-history-title {
   font-size: 0.95rem;
+}
+
+.attendance-forecast-card header {
+  margin-bottom: 12px;
+}
+
+.attendance-forecast-item {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) repeat(5, minmax(88px, auto));
+  gap: 14px;
+  align-items: center;
+}
+
+.attendance-forecast-course strong,
+.attendance-forecast-metric strong {
+  display: block;
+}
+
+.attendance-forecast-course small,
+.attendance-forecast-metric small {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.attendance-forecast-metric {
+  text-align: right;
+}
+
+.attendance-forecast-metric.is-warning strong {
+  color: #dc2626;
+}
+
+@media (max-width: 768px) {
+  .attendance-forecast-item {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .attendance-forecast-metric {
+    text-align: left;
+  }
 }
 
 /* ── Study Planner — Timer Card ── */
