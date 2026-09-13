@@ -60,26 +60,6 @@
         </li>
       </ul>
     </nav>
-    <div class="sidebar-footer" style="margin-top: auto; padding: 20px 0; border-top: 1px solid var(--border-color);">
-      <ul class="nav-links" style="flex-direction: column; gap: 8px;">
-        <li class="nav-item">
-          <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
-            <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
-          </a>
-        </li>
-        <li class="nav-item">
-          <label class="nav-link" tabindex="0" aria-label="Import data from JSON file" style="color: var(--text-secondary); font-size: 0.85rem; cursor: pointer;">
-            <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
-            <input type="file" id="import-data-file" accept=".json" hidden>
-          </label>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
-            <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
-          </a>
-        </li>
-      </ul>
-    </div>
   </aside>
 
   <!-- Main Content Area -->
@@ -101,11 +81,23 @@
       </button>
       <div class="api-auth" id="api-auth" aria-label="Backend account controls">
         <span class="api-auth-status" id="api-auth-status">Offline mode</span>
-        <input class="api-auth-input" id="api-auth-email" type="email" placeholder="Email" aria-label="Account email">
+        <input class="api-auth-input" id="api-auth-username" type="text" placeholder="Username" aria-label="Account username" autocomplete="username">
         <input class="api-auth-input" id="api-auth-password" type="password" placeholder="Password" aria-label="Account password">
         <button class="btn btn-secondary api-auth-btn" id="api-login-btn" type="button">Login</button>
         <button class="btn api-auth-btn" id="api-register-btn" type="button">Register</button>
         <button class="btn btn-secondary api-auth-btn" id="api-logout-btn" type="button" hidden>Logout</button>
+      </div>
+      <div class="data-actions" aria-label="Data management">
+        <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
+          <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
+        </a>
+        <label class="nav-link" tabindex="0" aria-label="Import data from JSON file">
+          <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
+          <input type="file" id="import-data-file" accept=".json" hidden>
+        </label>
+        <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
+          <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
+        </a>
       </div>
     </header>
 
@@ -120,16 +112,27 @@
         </header>
 
         <div class="dashboard-grid">
-          <!-- Up Next -->
+          <!-- Today's classes -->
           <article class="card">
             <header>
-              <h2 class="card-title"><i class="ph-fill ph-clock" aria-hidden="true"></i> Up Next</h2>
+              <h2 class="card-title"><i class="ph-fill ph-calendar" aria-hidden="true"></i> Today's classes</h2>
             </header>
-            <ul class="mock-list" id="dashboard-up-next">
+            <ul class="mock-list" id="dashboard-todays-classes">
               <li class="mock-list-item empty-state">
                 <i class="ph ph-calendar-slash" aria-hidden="true"></i> No upcoming classes
               </li>
             </ul>
+          </article>
+
+          <!-- Next class -->
+          <article class="card dashboard-next-card">
+            <header>
+              <h2 class="card-title"><i class="ph-fill ph-clock" aria-hidden="true"></i> Next class</h2>
+            </header>
+            <div id="dashboard-next-class" class="dashboard-feature-state">
+              <i class="ph ph-calendar-slash" aria-hidden="true"></i>
+              <span>No upcoming classes</span>
+            </div>
           </article>
 
           <!-- Deadlines -->
@@ -153,7 +156,8 @@
             <div><p class="card-subtitle text-secondary">Due soon</p><p id="dashboard-due-soon" class="stat-value">0</p></div>
             <div><p class="card-subtitle text-secondary">Low attendance</p><p id="dashboard-low-attendance" class="stat-value">0</p></div>
             <div><p class="card-subtitle text-secondary">Productivity</p><p id="dashboard-productivity-score" class="stat-value">0/100</p></div>
-            <div><p class="card-subtitle text-secondary">Study consistency</p><p id="dashboard-consistency-stat" class="stat-value">0/7 days</p></div>
+            <div><p class="card-subtitle text-secondary">Study streak</p><p id="dashboard-consistency-stat" class="stat-value">0 days</p></div>
+            <div><p class="card-subtitle text-secondary">Weekly goal</p><p id="dashboard-goal-stat" class="stat-value">0%</p></div>
           </div>
         </article>
 
@@ -170,6 +174,14 @@
 
         <div class="dashboard-grid mt-1-5">
           <article class="card">
+            <header><h2 class="card-title"><i class="ph-fill ph-fire" aria-hidden="true"></i> Study rhythm</h2></header>
+            <div id="dashboard-study-rhythm" class="dashboard-rhythm">
+              <div class="dashboard-rhythm-main"><strong id="dashboard-streak-days">0 days</strong><span>current streak</span></div>
+              <div class="dashboard-progress"><span id="dashboard-goal-progress"></span></div>
+              <p id="dashboard-goal-detail" class="text-secondary">Connect your account to track your weekly goal.</p>
+            </div>
+          </article>
+          <article class="card">
             <header><h2 class="card-title">Workload distribution</h2></header>
             <ul class="mock-list" id="dashboard-workload"><li class="mock-list-item empty-state">No pending workload.</li></ul>
           </article>
@@ -178,6 +190,11 @@
             <ul class="mock-list" id="dashboard-academic-trend"><li class="mock-list-item empty-state">Add graded semesters to see your trend.</li></ul>
           </article>
         </div>
+
+        <article class="card mt-1-5">
+          <header><h2 class="card-title"><i class="ph-fill ph-warning-octagon" aria-hidden="true"></i> Overdue assignments</h2></header>
+          <ul class="mock-list" id="dashboard-overdue"><li class="mock-list-item empty-state">No overdue assignments.</li></ul>
+        </article>
       </section>
 
       <!-- ── Timetable ── -->
@@ -209,9 +226,22 @@
         <div id="tt-output" hidden>
           <div class="tt-action-bar">
             <p class="tt-action-hint">
-              <i class="ph ph-info" aria-hidden="true"></i> Review the extracted schedule below. Click any cell to edit.
+              <i class="ph ph-info" aria-hidden="true"></i> Drag classes to move them, or use the resize handle to change duration.
             </p>
             <div class="tt-action-btns">
+              <label class="tt-view-control tt-search-control">
+                <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                <input id="tt-search" class="form-control" type="search" placeholder="Search classes" aria-label="Search classes">
+              </label>
+              <label class="tt-view-control">Course
+                <select id="tt-course-filter" aria-label="Filter by course"><option value="">All courses</option></select>
+              </label>
+              <label class="tt-view-control">Room
+                <select id="tt-room-filter" aria-label="Filter by room"><option value="">All rooms</option></select>
+              </label>
+              <label class="tt-view-control">Faculty
+                <select id="tt-faculty-filter" aria-label="Filter by faculty"><option value="">All faculty</option></select>
+              </label>
               <label class="tt-view-control">View
                 <select id="tt-view-mode" aria-label="Timetable view">
                   <option value="week">Week</option>
@@ -237,6 +267,7 @@
           </div>
 
           <p class="tt-gap-summary" id="tt-gap-summary" aria-live="polite"></p>
+          <p class="tt-free-summary" id="tt-free-summary" aria-live="polite"></p>
 
           <!-- Weekly grid -->
           <div class="tt-grid-wrapper">
@@ -521,11 +552,26 @@
             <p id="att-exam-count" class="stat-value text-purple">0</p>
           </article>
         </div>
+
+        <article class="card mt-1-5 attendance-forecast-card">
+          <header>
+            <h2 class="card-title"><i class="ph-fill ph-chart-line-up" aria-hidden="true"></i> Attendance forecast</h2>
+            <p class="text-secondary">Plan your next lectures using your current attendance and target threshold.</p>
+          </header>
+          <ul class="mock-list" id="attendance-forecast-list">
+            <li class="mock-list-item empty-state"><i class="ph ph-chart-line-up" aria-hidden="true"></i>Connect your account to calculate forecasts.</li>
+          </ul>
+        </article>
       </section>
 
     </div>
   </main>
 
+  <script src="js/core/state.js"></script>
+  <script src="js/core/events.js"></script>
+  <script src="js/core/storage.js"></script>
+  <script src="js/core/dom.js"></script>
+  <script src="js/core/utils.js"></script>
   <script src="js/validation.js"></script>
   <script src="js/api.js"></script>
   <script src="js/states.js"></script>
