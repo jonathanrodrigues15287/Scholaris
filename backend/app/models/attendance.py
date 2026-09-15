@@ -11,9 +11,9 @@ from app.core.database import Base
 class Attendance(Base):
 	__tablename__ = "attendance"
 	__table_args__ = (
-		UniqueConstraint("user_id", "course_id", "date", name="uq_attendance_user_course_date"),
-		Index("ix_attendance_user_date", "user_id", "date"),
-		Index("ix_attendance_user_status_date", "user_id", "status", "date"),
+		UniqueConstraint("course_id", "date", name="uq_attendance_user_course_date"),
+		Index("ix_attendance_course_date", "course_id", "date"),
+		Index("ix_attendance_course_status_date", "course_id", "status", "date"),
 		CheckConstraint(
 			"status IN ('present', 'absent', 'holiday', 'exam')",
 			name="ck_attendance_status",
@@ -27,7 +27,6 @@ class Attendance(Base):
 	semester_id: Mapped[int | None] = mapped_column(
 		ForeignKey("semesters.id", ondelete="SET NULL"), nullable=True, index=True
 	)
-	user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
 	created_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True), server_default=func.now(), default=lambda: datetime.now(timezone.utc)
 	)
@@ -37,7 +36,6 @@ class Attendance(Base):
 
 	course = relationship("Course", back_populates="attendance_records")
 	semester = relationship("Semester")
-	user = relationship("User", back_populates="attendance_records")
 
 
 class AttendanceHistory(Base):
