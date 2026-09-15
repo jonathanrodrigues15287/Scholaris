@@ -7,6 +7,8 @@
   const dateInput = document.getElementById('att-date');
   const statusSelect = document.getElementById('att-status');
   const courseInput = document.getElementById('att-course');
+  const customWrap = document.getElementById('att-custom-wrap');
+  const customInput = document.getElementById('att-custom-course');
   const addBtn = document.getElementById('add-attendance-btn');
   const presentCount = document.getElementById('att-present-count');
   const absentCount = document.getElementById('att-absent-count');
@@ -70,13 +72,26 @@
     }
 
     if (subjects.length === 0) {
-      courseInput.innerHTML = '<option value="N/A">No subjects found for ' + dayStr + '</option>';
+      courseInput.innerHTML = '<option value="N/A">No subjects found for ' + escapeHtml(dayStr) + '</option>';
     } else {
       courseInput.innerHTML = subjects.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     }
     
     // Add a custom option just in case
     courseInput.innerHTML += '<option value="Custom">Other (Custom)</option>';
+    handleCourseChange();
+  }
+
+  function handleCourseChange() {
+    Validate.clearError(courseInput);
+    if (customInput) Validate.clearError(customInput);
+    if (courseInput.value === 'Custom') {
+      if (customWrap) customWrap.style.display = 'block';
+      customInput?.focus();
+    } else {
+      if (customWrap) customWrap.style.display = 'none';
+      if (customInput) customInput.value = '';
+    }
   }
 
   function escapeHtml(str) {
@@ -148,7 +163,7 @@
                   <i class="ph ph-calendar"></i> ${dayStr}, ${dateStr}
                 </span>
               </div>
-              <button class="icon-btn" data-action="delete" data-index="${i}" title="Delete record" style="color: var(--text-secondary);">
+              <button class="icon-btn" data-action="delete" data-id="${r.id || ''}" data-date="${escapeHtml(r.date)}" data-course="${escapeHtml(r.course || '')}" title="Delete record" style="color: var(--text-secondary);">
                 <i class="ph ph-trash"></i>
               </button>
             </div>
@@ -160,12 +175,13 @@
       console.error('Attendance render error:', e);
       list.innerHTML = window.States.error(
         "Couldn't load attendance records.",
-        'window._attendanceRender()'
+        'attendance-retry-btn'
       );
+      document.getElementById('attendance-retry-btn')?.addEventListener('click', render);
     }
   }
 
-  // Expose render globally for the error-state retry button
+  // Expose render globally for retry
   window._attendanceRender = render;
 
   function updateStats() {
@@ -258,18 +274,37 @@
   list.addEventListener('click', async e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
-    const i = parseInt(btn.dataset.index, 10);
     const records = load();
     if (btn.dataset.action === 'delete') {
-      const deletedRecord = records.splice(i, 1)[0];
+      const recordId = btn.dataset.id ? Number(btn.dataset.id) : null;
+      const date = btn.dataset.date;
+      const course = btn.dataset.course;
+      const targetIndex = records.findIndex(r => (recordId && r.id === recordId) || (r.date === date && r.course === course));
+      if (targetIndex === -1) return;
+      const deletedRecord = records.splice(targetIndex, 1)[0];
       if (deletedRecord.id && window.ScholarisApi?.isAuthenticated()) await window.ScholarisApi.deleteAttendance(deletedRecord.id);
       save(records);
       if (window.showToast) {
         window.showToast('Attendance record deleted', 'success', {
           text: 'Undo',
-          onClick: () => {
+          onClick: async () => {
             const currentRecords = load();
-            currentRecords.splice(i, 0, deletedRecord);
+            currentRecords.splice(targetIndex, 0, deletedRecord);
+            if (deletedRecord.id && window.ScholarisApi?.isAuthenticated()) {
+              const courseId = deletedRecord.courseId || deletedRecord.course_id;
+              if (courseId) {
+                try {
+                  const restored = await window.ScholarisApi.createAttendance({
+                    date: deletedRecord.date,
+                    status: deletedRecord.status,
+                    course_id: Number(courseId)
+                  });
+                  if (restored?.id) deletedRecord.id = restored.id;
+                } catch (err) {
+                  console.warn('Attendance undo re-sync error:', err);
+                }
+              }
+            }
             save(currentRecords);
             window.showToast('Record restored');
           }
@@ -282,6 +317,7 @@
     // Clear previous errors
     Validate.clearError(dateInput);
     Validate.clearError(courseInput);
+    if (customInput) Validate.clearError(customInput);
 
     let valid = true;
     const date = dateInput.value.trim();
@@ -302,15 +338,20 @@
 
     let course = courseInput.value.trim();
 
-    // 2. Handle custom course name
+    // 2. Handle custom course name inline
     if (course === 'Custom') {
-      const custom = prompt('Enter custom course/subject name:');
-      if (!custom || !custom.trim()) {
-        Validate.setError(courseInput, 'Please enter a course name.');
-        courseInput.focus();
+      const custom = customInput ? customInput.value.trim() : '';
+      if (!custom) {
+        if (customInput) {
+          Validate.setError(customInput, 'Please enter a course name.');
+          customInput.focus();
+        } else {
+          Validate.setError(courseInput, 'Please enter a course name.');
+          courseInput.focus();
+        }
         valid = false;
       } else {
-        course = custom.trim();
+        course = custom;
       }
     }
 
@@ -326,7 +367,7 @@
     const status = statusSelect.value;
     const records = load();
 
-    if (window.ScholarisApi?.isAuthenticated() && course !== 'Custom') {
+    if (window.ScholarisApi?.isAuthenticated() && courseInput.value !== 'Custom') {
       const courseId = Number(course);
       try {
         const existing = records.find(record => record.date === date && Number(record.courseId || record.course_id) === courseId);
@@ -366,7 +407,10 @@
     Validate.clearError(dateInput);
     updateCourseDropdown(e.target.value);
   });
-  courseInput?.addEventListener('change', () => Validate.clearError(courseInput));
+  courseInput?.addEventListener('change', handleCourseChange);
+  customInput?.addEventListener('input', () => {
+    if (customInput) Validate.clearError(customInput);
+  });
   dateInput?.addEventListener('keydown', e => {
     if (e.key === 'Enter') courseInput.focus();
   });
