@@ -11,6 +11,7 @@ class User(Base):
 
 	id: Mapped[int] = mapped_column(primary_key=True)
 	name: Mapped[str] = mapped_column(String(120))
+	username: Mapped[str] = mapped_column(String(80), unique=True, index=True)
 	email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
 	hashed_password: Mapped[str] = mapped_column(String(255))
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -24,6 +25,4 @@ class User(Base):
 	courses = relationship("Course", back_populates="user", cascade="all, delete-orphan")
 	assignments = relationship("Assignment", back_populates="user", cascade="all, delete-orphan")
 	semesters = relationship("Semester", back_populates="user", cascade="all, delete-orphan")
-	timetable_entries = relationship("Timetable", back_populates="user", cascade="all, delete-orphan")
-	attendance_records = relationship("Attendance", back_populates="user", cascade="all, delete-orphan")
 	study_sessions = relationship("StudySession", back_populates="user", cascade="all, delete-orphan")
