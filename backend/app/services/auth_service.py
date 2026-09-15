@@ -9,13 +9,19 @@ from app.schemas.user import UserCreate
 from app.utils.helpers import normalise_email, normalise_name
 
 
+def normalise_username(value: str) -> str:
+	return value.strip().lower()
+
+
 def register_user(db: Session, data: UserCreate) -> User:
-	email = normalise_email(str(data.email))
-	if db.scalar(select(User).where(User.email == email)):
-		raise ConflictError("A user with this email already exists")
+	username = normalise_username(data.username or str(data.email).split("@", 1)[0])
+	email = normalise_email(str(data.email)) if data.email else f"{username}@users.scholaris.app"
+	if db.scalar(select(User).where((User.username == username) | (User.email == email))):
+		raise ConflictError("A user with this username or email already exists")
 	user = User(
+		username=username,
 		email=email,
-		name=normalise_name(data.name or data.full_name),
+		name=normalise_name(data.name or data.full_name or username),
 		hashed_password=hash_password(data.password),
 	)
 
@@ -24,13 +30,16 @@ def register_user(db: Session, data: UserCreate) -> User:
 		db.commit()
 	except IntegrityError as error:
 		db.rollback()
-		raise ConflictError("A user with this email already exists") from error
+		raise ConflictError("A user with this username or email already exists") from error
 	db.refresh(user)
 	return user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> User:
-	user = db.scalar(select(User).where(User.email == normalise_email(email)))
+def authenticate_user(db: Session, identifier: str, password: str) -> User:
+	identifier = identifier.strip().lower()
+	user = db.scalar(
+		select(User).where((User.username == identifier) | (User.email == normalise_email(identifier)))
+	)
 	if not user or not user.is_active or not verify_password(password, user.hashed_password):
 		raise AuthenticationError("Incorrect email or password")
 	return user
