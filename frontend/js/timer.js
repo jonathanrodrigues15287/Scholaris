@@ -19,6 +19,7 @@
 
   let totalSeconds = getFocusMins() * 60;
   let remaining = totalSeconds;
+  let elapsedFocusSeconds = 0;
   let interval = null;
   let running = false;
   let isFocus = true;
@@ -38,8 +39,25 @@
     document.title = `${formatTime(remaining)} — ${isFocus ? 'Focus' : 'Break'} | Scholaris`;
   }
 
+  function notifyPhaseEnd(title, body) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(title, { body });
+      } catch (e) {
+        console.warn('Browser notification error:', e);
+      }
+    }
+  }
+
+  function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }
+
   function setPhase(focus) {
     isFocus = focus;
+    if (isFocus) elapsedFocusSeconds = 0;
     totalSeconds = (isFocus ? getFocusMins() : getBreakMins()) * 60;
     remaining = totalSeconds;
     modeLabel.textContent = isFocus ? '🎯 Focus Session' : '☕ Break Time';
@@ -49,15 +67,24 @@
 
   function startTimer() {
     if (running) return;
+    requestNotificationPermission();
     running = true;
     startBtn.innerHTML = '<i class="ph ph-pause"></i> Pause';
     interval = setInterval(() => {
       remaining--;
+      if (isFocus) elapsedFocusSeconds++;
       updateDisplay();
       if (remaining <= 0) {
         clearInterval(interval);
         running = false;
-        setPhase(!isFocus); // auto-switch phase
+        if (isFocus) {
+          lastSessionDuration = Math.max(1, Math.round(elapsedFocusSeconds / 60));
+          notifyPhaseEnd('Focus session complete! 🎯', 'Great job! Take a well-deserved break or record your task.');
+          showModal();
+        } else {
+          notifyPhaseEnd('Break time over! ☕', 'Ready to start another focus session?');
+          setPhase(!isFocus); // auto-switch phase back to focus
+        }
       }
     }, 1000);
   }
@@ -172,14 +199,22 @@
       sessionHistory.items = sessions.map(session => ({ ...session, date: session.start_time, duration: Math.round(session.duration / 60), task: '' }));
       stateApi.set('studySessions', sessionHistory.items, { persist: true });
       renderHistory();
-      document.getElementById('study-daily-stat').textContent = `${stats.daily} min`;
-      document.getElementById('study-weekly-stat').textContent = `${stats.weekly} min`;
-      document.getElementById('study-monthly-stat').textContent = `${stats.monthly} min`;
-      document.getElementById('study-streak-stat').textContent = `${stats.streak_days} days`;
-      document.getElementById('study-goal-stat').textContent = `Weekly goal: ${stats.goal_progress_minutes} / ${stats.goal_minutes} minutes`;
-      document.getElementById('study-suggestions-list').innerHTML = suggestions.length
-        ? suggestions.map(item => `<li class="mock-list-item"><strong>${escapeHtml(item.title)}</strong><span class="text-secondary">${escapeHtml(item.reason)} · ${item.duration_minutes} min</span></li>`).join('')
-        : '<li class="mock-list-item empty-state">No urgent study recommendations.</li>';
+      const dailyEl = document.getElementById('study-daily-stat');
+      if (dailyEl) dailyEl.textContent = `${stats.daily} min`;
+      const weeklyEl = document.getElementById('study-weekly-stat');
+      if (weeklyEl) weeklyEl.textContent = `${stats.weekly} min`;
+      const monthlyEl = document.getElementById('study-monthly-stat');
+      if (monthlyEl) monthlyEl.textContent = `${stats.monthly} min`;
+      const streakEl = document.getElementById('study-streak-stat');
+      if (streakEl) streakEl.textContent = `${stats.streak_days} days`;
+      const goalEl = document.getElementById('study-goal-stat');
+      if (goalEl) goalEl.textContent = `Weekly goal: ${stats.goal_progress_minutes} / ${stats.goal_minutes} minutes`;
+      const suggestionsEl = document.getElementById('study-suggestions-list');
+      if (suggestionsEl) {
+        suggestionsEl.innerHTML = suggestions.length
+          ? suggestions.map(item => `<li class="mock-list-item"><strong>${escapeHtml(item.title)}</strong><span class="text-secondary">${escapeHtml(item.reason)} · ${item.duration_minutes} min</span></li>`).join('')
+          : '<li class="mock-list-item empty-state">No urgent study recommendations.</li>';
+      }
       window.ScholarisEvents?.emit('study-updated');
     } catch (error) {
       console.warn('Could not load study analytics:', error.message);
@@ -223,26 +258,12 @@
     }
   });
 
-  /* ── Overriding startTimer for Modal Trigger ── */
+  /* ── Timer Controls ── */
   startBtn?.addEventListener('click', () => {
-    if (running) pauseTimer(); else {
-      if (running) return;
-      running = true;
-      startBtn.innerHTML = '<i class="ph ph-pause"></i> Pause';
-      interval = setInterval(() => {
-        remaining--;
-        updateDisplay();
-        if (remaining <= 0) {
-          clearInterval(interval);
-          running = false;
-          if (isFocus) {
-            lastSessionDuration = getFocusMins();
-            showModal();
-          } else {
-            setPhase(!isFocus); // auto-switch phase back to focus
-          }
-        }
-      }, 1000);
+    if (running) {
+      pauseTimer();
+    } else {
+      startTimer();
     }
   });
 
