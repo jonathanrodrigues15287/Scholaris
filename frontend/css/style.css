@@ -715,6 +715,12 @@ select.form-control {
   color: var(--text-primary);
 }
 
+.toast-action-btn {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
 /* ── Loading & Error States ── */
 .loading-state {
   display: flex;
