@@ -129,9 +129,11 @@
         current.updatedAt = new Date().toISOString();
         writeQueue(readQueue().map(item => item.id === current.id ? current : item));
         try {
+          const opHeaders = { ...current.headers };
+          delete opHeaders['X-CSRF-Token'];
           await request(current.path, {
             method: current.method,
-            headers: { ...current.headers, 'X-CSRF-Token': undefined },
+            headers: opHeaders,
             body: current.body,
             skipQueue: true
           });
@@ -345,9 +347,8 @@
   }
 
   async function getOrCreateDefaultCourse() {
-    const page = await request('/courses');
-    const courses = page.items;
-    if (courses.length) return courses[0];
+    const courses = await getCourses();
+    if (courses && courses.length) return courses[0];
     return request('/courses', {
       method: 'POST',
       body: JSON.stringify({ name: 'General', code: 'GEN', credits: 0 })
@@ -381,6 +382,7 @@
 
   window.ScholarisApi = {
     API_BASE,
+    checkSession,
     clearSession,
     createAssignment,
     createAcademicCourse,
