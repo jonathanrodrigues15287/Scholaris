@@ -6,11 +6,35 @@
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const overlay = document.getElementById('sidebar-overlay');
 
-  function switchSection(targetId) {
+  function switchSection(targetId, updateHash = true) {
+    if (!targetId) return;
+    const targetSection = document.getElementById(targetId);
+    if (!targetSection) return;
+
     navLinks.forEach(l => l.classList.remove('active'));
     sections.forEach(s => s.classList.remove('active'));
     document.querySelector(`[data-target="${targetId}"]`)?.classList.add('active');
-    document.getElementById(targetId)?.classList.add('active');
+    targetSection.classList.add('active');
+
+    if (updateHash && location.hash !== `#${targetId}`) {
+      history.pushState(null, '', `#${targetId}`);
+    }
+  }
+
+  function handleHashChange() {
+    const hash = location.hash.replace('#', '');
+    if (hash && document.getElementById(hash)) {
+      switchSection(hash, false);
+    }
+  }
+
+  window.addEventListener('hashchange', handleHashChange);
+  window.addEventListener('popstate', handleHashChange);
+
+  // Restore active section on initial load if deep linked
+  const initialHash = location.hash.replace('#', '');
+  if (initialHash && document.getElementById(initialHash)) {
+    switchSection(initialHash, false);
   }
 
   navLinks.forEach(link => {
@@ -64,19 +88,32 @@
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target.result);
+        if (!data || typeof data !== 'object') {
+          throw new Error('Backup content must be a JSON object.');
+        }
+        let importedCount = 0;
         for (const [key, value] of Object.entries(data)) {
           if (key.startsWith('scholaris_')) {
             localStorage.setItem(key, value);
+            importedCount++;
           }
+        }
+        if (importedCount === 0) {
+          throw new Error('No Scholaris data found in the imported file.');
         }
         if (window.showToast) window.showToast('Data imported successfully! Reloading...');
         setTimeout(() => window.location.reload(), 1500);
       } catch (err) {
-        if (window.showToast) window.showToast('Failed to import data: Invalid file format', 'error');
+        if (window.showToast) window.showToast(`Failed to import data: ${err.message}`, 'error');
+      } finally {
+        e.target.value = '';
       }
     };
+    reader.onerror = () => {
+      if (window.showToast) window.showToast('Failed to read file.', 'error');
+      e.target.value = '';
+    };
     reader.readAsText(file);
-    e.target.value = ''; // Reset input
   });
 
   clearBtn?.addEventListener('click', async () => {
