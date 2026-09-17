@@ -1,7 +1,8 @@
 // assignments.js — add, render, complete, delete, and persist assignments
 
 (function () {
-  const STORAGE_KEY = 'scholaris_assignments';
+  const state = window.ScholarisState;
+  const stateApi = window.ScholarisStateApi;
   const list = document.getElementById('assignments-list');
   const submittedSection = document.getElementById('submitted-assignments-section');
   const submittedList = document.getElementById('submitted-assignments-list');
@@ -74,11 +75,11 @@
   }
 
   function load() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    return state.assignments;
   }
 
   function save(tasks) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    stateApi.set('assignments', tasks, { persist: true });
     updateDashboard(tasks);
   }
 
@@ -122,6 +123,12 @@
 
   function dateToIso(dateStr) {
     if (!dateStr) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    const dmyMatch = dateStr.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
     const parts = dateStr.split('-');
     if (parts.length !== 3) return '';
     let y, m, d;
@@ -183,7 +190,7 @@
         }
       });
       // Silent save if priorities updated naturally
-      if (tasksChanged) localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      if (tasksChanged) stateApi.set('assignments', tasks, { persist: true });
 
       // Attach original index for 'recent' sorting and reliable UI mapping
       tasks = tasks.map((t, i) => ({ ...t, _origIndex: i }));
@@ -387,6 +394,9 @@
             currentTasks.splice(i, 0, deletedTask);
             save(currentTasks);
             render();
+            if (deletedTask.id && window.ScholarisApi?.isAuthenticated()) {
+              syncTaskCreate(deletedTask);
+            }
             window.showToast('Task restored');
           }
         });
