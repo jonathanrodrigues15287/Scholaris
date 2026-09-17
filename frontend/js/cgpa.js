@@ -12,7 +12,7 @@
   if (!semestersContainer) return;
 
   function generateId() {
-    return Math.random().toString(36).substr(2, 9);
+    return Math.random().toString(36).slice(2, 11);
   }
 
   function load() {
@@ -359,10 +359,31 @@
   window.addEventListener('scholaris:auth-changed', hydrateFromBackend);
   document.getElementById('target-cgpa-btn')?.addEventListener('click', async () => {
     const result = document.getElementById('target-cgpa-result');
+    if (!window.ScholarisApi?.isAuthenticated()) {
+      if (result) result.textContent = 'Connect your account to use the target CGPA planner.';
+      window.showToast?.('Please connect your account to calculate target SGPA.', 'info');
+      return;
+    }
+    const targetInput = document.getElementById('target-cgpa-input');
+    const creditsInput = document.getElementById('target-credits-input');
+    const targetCgpa = Number(targetInput?.value);
+    const credits = Number(creditsInput?.value);
+
+    if (!targetCgpa || targetCgpa <= 0 || targetCgpa > 10) {
+      if (result) result.textContent = 'Please enter a target CGPA between 0.01 and 10.00.';
+      targetInput?.focus();
+      return;
+    }
+    if (!credits || credits <= 0) {
+      if (result) result.textContent = 'Please enter valid next-semester credits (> 0).';
+      creditsInput?.focus();
+      return;
+    }
+
     try {
       const data = await window.ScholarisApi.calculateTargetCgpa({
-        target_cgpa: Number(document.getElementById('target-cgpa-input').value),
-        next_semester_credits: Number(document.getElementById('target-credits-input').value)
+        target_cgpa: targetCgpa,
+        next_semester_credits: credits
       });
       result.textContent = data.possible
         ? `You need approximately ${data.required_sgpa.toFixed(2)} SGPA next semester.`
