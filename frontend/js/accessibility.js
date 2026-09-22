@@ -1,4 +1,4 @@
-// accessibility.js — focus trap for modals, ARIA live region helpers
+// accessibility.js ï¿½ focus trap for modals, ARIA live region helpers
 
 (function () {
   const FOCUSABLE = [
@@ -28,6 +28,32 @@
     return () => document.removeEventListener('keydown', handler);
   }
 
+  let lastFocusedElement = null;
+  document.addEventListener('focusin', (event) => {
+    if (!event.target.closest('dialog')) lastFocusedElement = event.target;
+  });
+
+  function watchModal(overlay, modal, closeFn) {
+    let cleanup = null;
+    let opener = null;
+    new MutationObserver(() => {
+      const isOpen = !overlay.classList.contains('hidden');
+      overlay.setAttribute('aria-hidden', String(!isOpen));
+      modal.setAttribute('aria-modal', String(isOpen));
+      if (isOpen) {
+        opener = lastFocusedElement || document.activeElement;
+        cleanup?.();
+        cleanup = trapFocus(modal);
+      } else {
+        cleanup?.();
+        cleanup = null;
+        if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+        opener = null;
+      }
+    }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+    addEscapeClose(overlay, closeFn);
+  }
+
   function addEscapeClose(overlay, closeFn) {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeFn();
@@ -39,15 +65,7 @@
   const ttModal   = document.getElementById('tt-modal');
   const ttCancel  = document.getElementById('tt-modal-cancel');
   if (ttOverlay && ttModal && ttCancel) {
-    let cleanup = null;
-    new MutationObserver(() => {
-      const isOpen = !ttOverlay.classList.contains('hidden');
-      ttOverlay.setAttribute('aria-hidden', String(!isOpen));
-      ttModal.setAttribute('aria-modal', String(isOpen));
-      if (isOpen) { cleanup = trapFocus(ttModal); }
-      else if (cleanup) { cleanup(); cleanup = null; }
-    }).observe(ttOverlay, { attributes: true, attributeFilter: ['class'] });
-    addEscapeClose(ttOverlay, () => ttCancel.click());
+    watchModal(ttOverlay, ttModal, () => ttCancel.click());
   }
 
   // Session completion modal
@@ -55,14 +73,6 @@
   const sessModal   = document.getElementById('session-modal');
   const sessSkip    = document.getElementById('session-skip-btn');
   if (sessOverlay && sessModal && sessSkip) {
-    let cleanup = null;
-    new MutationObserver(() => {
-      const isOpen = !sessOverlay.classList.contains('hidden');
-      sessOverlay.setAttribute('aria-hidden', String(!isOpen));
-      sessModal.setAttribute('aria-modal', String(isOpen));
-      if (isOpen) { cleanup = trapFocus(sessModal); }
-      else if (cleanup) { cleanup(); cleanup = null; }
-    }).observe(sessOverlay, { attributes: true, attributeFilter: ['class'] });
-    addEscapeClose(sessOverlay, () => sessSkip.click());
+    watchModal(sessOverlay, sessModal, () => sessSkip.click());
   }
 })();
