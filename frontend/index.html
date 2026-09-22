@@ -20,7 +20,7 @@
   <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
 
   <!-- Sidebar -->
-  <aside class="sidebar" role="navigation" aria-label="Application sidebar">
+  <aside class="sidebar" id="application-sidebar" role="navigation" aria-label="Application sidebar">
     <div class="logo">
       <i class="ph-fill ph-graduation-cap" aria-hidden="true"></i>
       <span>Scholaris</span>
@@ -29,32 +29,32 @@
     <nav aria-label="Main Navigation">
       <ul class="nav-links">
         <li class="nav-item">
-          <a class="nav-link active" data-target="dashboard">
+          <a class="nav-link active" data-target="dashboard" role="button" tabindex="0" aria-current="page">
             <i class="ph-fill ph-house" aria-hidden="true"></i> Dashboard
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" data-target="timetable">
+          <a class="nav-link" data-target="timetable" role="button" tabindex="0">
             <i class="ph ph-calendar-blank" aria-hidden="true"></i> Timetable
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" data-target="assignments">
+          <a class="nav-link" data-target="assignments" role="button" tabindex="0">
             <i class="ph-fill ph-list-checks" aria-hidden="true"></i> Assignments
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" data-target="study-planner">
+          <a class="nav-link" data-target="study-planner" role="button" tabindex="0">
             <i class="ph-fill ph-timer" aria-hidden="true"></i> Study Planner
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" data-target="cgpa">
+          <a class="nav-link" data-target="cgpa" role="button" tabindex="0">
             <i class="ph-fill ph-chart-line-up" aria-hidden="true"></i> Academic Records
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" data-target="attendance">
+          <a class="nav-link" data-target="attendance" role="button" tabindex="0">
             <i class="ph-fill ph-calendar-check" aria-hidden="true"></i> Attendance
           </a>
         </li>
@@ -68,7 +68,7 @@
     <!-- Topbar -->
     <header class="topbar">
       <!-- Hamburger — only visible on mobile -->
-      <button class="hamburger-btn" id="hamburger-btn" title="Toggle Sidebar" aria-label="Toggle sidebar">
+      <button class="hamburger-btn" id="hamburger-btn" title="Toggle Sidebar" aria-label="Toggle sidebar" aria-expanded="false" aria-controls="application-sidebar">
         <i class="ph ph-list" aria-hidden="true"></i>
       </button>
       <form class="search-container" role="search" id="search-form">
@@ -419,9 +419,9 @@
 
         <!-- Session Completion Modal -->
         <div id="session-modal-overlay" class="modal-overlay hidden" aria-hidden="true">
-          <dialog class="modal-content card" id="session-modal" open>
+          <dialog class="modal-content card" id="session-modal" aria-labelledby="session-modal-title" aria-modal="true" open>
             <header>
-              <h2 class="card-title"><i class="ph-fill ph-party-horn" aria-hidden="true"></i> Session Complete!</h2>
+              <h2 class="card-title" id="session-modal-title"><i class="ph-fill ph-party-horn" aria-hidden="true"></i> Session Complete!</h2>
             </header>
             <p class="mb-1 text-secondary">Great job! What did you work on during this focus session?</p>
             <input type="text" id="session-task-input" class="form-control" placeholder="e.g. Studied Calculus Chapter 4..." aria-label="Session task">
@@ -591,7 +591,7 @@
 
   <!-- Timetable Edit Modal (Rich Form) -->
   <div id="tt-modal-overlay" class="modal-overlay hidden" aria-hidden="true">
-    <dialog class="modal-content card tt-modal-dialog" id="tt-modal" open>
+    <dialog class="modal-content card tt-modal-dialog" id="tt-modal" aria-labelledby="tt-modal-title" aria-modal="true" open>
       <header>
         <h2 class="card-title" id="tt-modal-title"><i class="ph-fill ph-calendar-plus" aria-hidden="true"></i> Edit Class Event</h2>
       </header>
