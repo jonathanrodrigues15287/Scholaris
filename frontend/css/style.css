@@ -251,6 +251,13 @@ body.sidebar-open .sidebar-overlay {
   background-color: var(--border-color);
 }
 
+.hamburger-btn:focus-visible,
+.nav-link:focus-visible,
+.data-actions .nav-link:focus-visible {
+  outline: 3px solid var(--accent-color);
+  outline-offset: 3px;
+}
+
 .search-container {
   display: flex;
   align-items: center;
