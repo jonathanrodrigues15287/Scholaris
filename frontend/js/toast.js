@@ -6,10 +6,32 @@
   if (!container) {
     container = document.createElement('div');
     container.className = 'toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'false');
+    container.setAttribute('aria-label', 'Notifications');
     document.body.appendChild(container);
   }
 
+  // Map to prevent duplicate toasts
+  const activeToasts = new Map();
+
   window.showToast = function(message, type = 'success', action = null) {
+    if (!message) return;
+    const key = `${type}:${message}`;
+
+    // If an identical toast is already displayed, refresh its timer and return
+    if (activeToasts.has(key)) {
+      const existing = activeToasts.get(key);
+      if (existing.dataset.timeoutId) {
+        clearTimeout(parseInt(existing.dataset.timeoutId, 10));
+      }
+      const newTimeoutId = setTimeout(() => dismissToast(existing, key), type === 'error' ? 7000 : 5000);
+      existing.dataset.timeoutId = newTimeoutId;
+      existing.classList.remove('show');
+      setTimeout(() => existing.classList.add('show'), 20);
+      return;
+    }
+
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
     toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
@@ -30,13 +52,10 @@
     if (action) {
       const actionBtn = document.createElement('button');
       actionBtn.className = 'btn btn-secondary toast-action-btn';
-      actionBtn.style.padding = '4px 10px';
-      actionBtn.style.fontSize = '0.8rem';
-      actionBtn.style.marginLeft = 'auto';
       actionBtn.textContent = action.text;
       actionBtn.addEventListener('click', () => {
         action.onClick();
-        dismissToast(toast);
+        dismissToast(toast, key);
       });
       toast.appendChild(actionBtn);
     }
@@ -46,20 +65,22 @@
     closeBtn.type = 'button';
     closeBtn.setAttribute('aria-label', 'Dismiss notification');
     closeBtn.innerHTML = '<i class="ph ph-x" aria-hidden="true"></i>';
-    closeBtn.addEventListener('click', () => dismissToast(toast));
+    closeBtn.addEventListener('click', () => dismissToast(toast, key));
     toast.appendChild(closeBtn);
     
     container.appendChild(toast);
+    activeToasts.set(key, toast);
     
     // Trigger animation
     setTimeout(() => toast.classList.add('show'), 10);
     
-    // Remove after 5 seconds
-    const timeoutId = setTimeout(() => dismissToast(toast), type === 'error' ? 7000 : 5000);
+    // Remove after timeout
+    const timeoutId = setTimeout(() => dismissToast(toast, key), type === 'error' ? 7000 : 5000);
     toast.dataset.timeoutId = timeoutId;
   };
 
-  function dismissToast(toast) {
+  function dismissToast(toast, key) {
+    if (key) activeToasts.delete(key);
     if (toast.dataset.timeoutId) clearTimeout(parseInt(toast.dataset.timeoutId, 10));
     toast.classList.remove('show');
     setTimeout(() => toast.remove(), 300); // Wait for transition
