@@ -1,7 +1,7 @@
 // nav.js — section switching and mobile collapsible sidebar
 
 (function () {
-  const navLinks = document.querySelectorAll('.nav-link');
+  const navLinks = document.querySelectorAll('.sidebar .nav-link');
   const sections = document.querySelectorAll('.section');
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const overlay = document.getElementById('sidebar-overlay');
@@ -13,7 +13,9 @@
 
     navLinks.forEach(l => l.classList.remove('active'));
     sections.forEach(s => s.classList.remove('active'));
-    document.querySelector(`[data-target="${targetId}"]`)?.classList.add('active');
+    const activeLink = document.querySelector(`[data-target="${targetId}"]`);
+    activeLink?.classList.add('active');
+    navLinks.forEach(link => link.setAttribute('aria-current', link === activeLink ? 'page' : 'false'));
     targetSection.classList.add('active');
 
     if (updateHash && location.hash !== `#${targetId}`) {
@@ -37,19 +39,36 @@
     switchSection(initialHash, false);
   }
 
-  navLinks.forEach(link => {
+  navLinks.forEach((link, index) => {
     link.addEventListener('click', () => {
       switchSection(link.getAttribute('data-target'));
       closeSidebar(); // auto-close on mobile after tap
+    });
+    link.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        link.click();
+        return;
+      }
+      if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const direction = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? navLinks.length - 1 : (index + direction + navLinks.length) % navLinks.length;
+      navLinks[nextIndex].focus();
     });
   });
 
   function closeSidebar() {
     document.body.classList.remove('sidebar-open');
+    hamburgerBtn?.setAttribute('aria-expanded', 'false');
+    overlay?.setAttribute('aria-hidden', 'true');
   }
 
   hamburgerBtn?.addEventListener('click', () => {
-    document.body.classList.toggle('sidebar-open');
+    const isOpen = document.body.classList.toggle('sidebar-open');
+    hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
+    overlay?.setAttribute('aria-hidden', String(!isOpen));
+    if (isOpen) navLinks[0]?.focus();
   });
 
   overlay?.addEventListener('click', closeSidebar);
