@@ -1,8 +1,10 @@
 // assignments.js — add, render, complete, delete, and persist assignments
 
 (function () {
-  const state = window.ScholarisState;
-  const stateApi = window.ScholarisStateApi;
+  const Scholaris = window.Scholaris;
+  const { escapeHtml } = window.ScholarisUtils;
+  const ScholarisStateApi = window.ScholarisStateApi;
+  const ScholarisApi = window.ScholarisApi;
   const list = document.getElementById('assignments-list');
   const submittedSection = document.getElementById('submitted-assignments-section');
   const submittedList = document.getElementById('submitted-assignments-list');
@@ -35,16 +37,7 @@
   });
 
   function calculateAutoPriority(isoDate, pendingCount) {
-    if (!isoDate) {
-      return pendingCount >= 5 ? 'medium' : 'low';
-    }
-    const diff = getDaysDiff(isoDate);
-    if (diff < 0) return 'high';       // overdue
-    if (diff === 0) return 'high';     // due today
-    if (diff <= 3) return 'high';
-    if (diff <= 7) return pendingCount >= 5 ? 'high' : 'medium';
-    if (diff <= 14) return 'medium';
-    return 'low';
+    return Scholaris.utils.business.assignmentPriority(isoDate, pendingCount);
   }
 
   function updateAutoPriorityPreview() {
@@ -56,7 +49,7 @@
     
     const autoPrio = calculateAutoPriority(isoDate, pendingCount);
     
-    autoBadge.innerHTML = `<i class="ph-fill ph-flag" style="color: ${getPriorityColor(autoPrio)}"></i> Auto: ${autoPrio.charAt(0).toUpperCase() + autoPrio.slice(1)}`;
+    autoBadge.innerHTML = `<i class="ph-fill ph-flag priority-${autoPrio}"></i> Auto: ${autoPrio.charAt(0).toUpperCase() + autoPrio.slice(1)}`;
     autoBadge.hidden = false;
   }
 
@@ -75,11 +68,11 @@
   }
 
   function load() {
-    return state.assignments;
+    return ScholarisStateApi.get('assignments');
   }
 
   function save(tasks) {
-    stateApi.set('assignments', tasks, { persist: true });
+    ScholarisStateApi.set('assignments', tasks, { persist: true });
     updateDashboard(tasks);
   }
 
@@ -99,9 +92,9 @@
   }
 
   async function syncFromBackend() {
-    if (!window.ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi?.isAuthenticated()) return;
     try {
-      const remoteTasks = await window.ScholarisApi.getAssignments();
+      const remoteTasks = await ScholarisApi.getAssignments();
       save(remoteTasks.map(fromApiAssignment));
       render();
     } catch (error) {
@@ -110,34 +103,19 @@
   }
 
   async function syncTaskCreate(task) {
-    if (!window.ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi?.isAuthenticated()) return;
     try {
-      const remoteTask = await window.ScholarisApi.createAssignment(task);
+      const remoteTask = await ScholarisApi.createAssignment(task);
       task.id = remoteTask.id;
       save(load());
       render();
     } catch (error) {
-      window.showToast?.(`Saved locally. Backend sync failed: ${error.message}`, 'error');
+      Scholaris.utils.toast?.(`Saved locally. Backend sync failed: ${error.message}`, 'error');
     }
   }
 
   function dateToIso(dateStr) {
-    if (!dateStr) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    const dmyMatch = dateStr.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-    if (dmyMatch) {
-      const [, d, m, y] = dmyMatch;
-      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return '';
-    let y, m, d;
-    if (parts[0].length === 4) {
-      y = parts[0]; m = parts[1]; d = parts[2];
-    } else {
-      d = parts[0]; m = parts[1]; y = parts[2];
-    }
-    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    return Scholaris.utils.business.dateToIso(dateStr);
   }
 
   function getDaysDiff(isoDate) {
@@ -166,13 +144,6 @@
     return `${diff} days`;
   }
 
-  function getPriorityColor(priority) {
-    if (priority === 'high') return '#ef4444';
-    if (priority === 'medium') return '#f59e0b';
-    if (priority === 'low') return '#10b981';
-    return 'var(--text-secondary)';
-  }
-
   function render() {
     try {
       let tasks = load();
@@ -190,13 +161,13 @@
         }
       });
       // Silent save if priorities updated naturally
-      if (tasksChanged) stateApi.set('assignments', tasks, { persist: true });
+      if (tasksChanged) ScholarisStateApi.set('assignments', tasks, { persist: true });
 
       // Attach original index for 'recent' sorting and reliable UI mapping
       tasks = tasks.map((t, i) => ({ ...t, _origIndex: i }));
 
       if (tasks.length === 0) {
-        list.innerHTML = window.States.empty(
+        list.innerHTML = Scholaris.utils.states.empty(
           'ph ph-list-checks',
           'No assignments yet',
           'Add your first assignment to get started.',
@@ -208,7 +179,7 @@
         document.getElementById('assignments-empty-cta')?.addEventListener('click', () => {
           document.getElementById('assignment-title')?.focus();
         });
-        if (submittedSection) submittedSection.style.display = 'none';
+        if (submittedSection) submittedSection.hidden = true;
         return;
       }
 
@@ -227,7 +198,7 @@
       }
 
       if (tasks.length === 0) {
-        list.innerHTML = window.States.empty(
+        list.innerHTML = Scholaris.utils.states.empty(
           'ph ph-funnel-x',
           'No assignments match filters',
           'Try changing the status or priority filter.'
@@ -260,7 +231,7 @@
 
       const renderList = (taskArray, container, emptyMessage) => {
         if (taskArray.length === 0 && container === list) {
-          container.innerHTML = window.States.empty(
+          container.innerHTML = Scholaris.utils.states.empty(
             'ph ph-check-circle',
             emptyMessage,
             ''
@@ -277,14 +248,14 @@
                 <i class="ph${t.done ? '-fill ph-check-circle' : ' ph-circle'}"></i>
               </button>
               <span class="task-title">${escapeHtml(t.title)}</span>
-              ${t.priority ? `<i class="ph-fill ph-flag" style="color: ${getPriorityColor(t.priority)}; font-size: 0.8rem; margin-left: 4px;" title="Priority: ${t.priority}"></i>` : ''}
+              ${t.priority ? `<i class="ph-fill ph-flag priority-${t.priority}" title="Priority: ${t.priority}"></i>` : ''}
             </div>
             <div class="task-right">
               ${t.syncState === 'pending' ? '<span class="badge badge-yellow" title="Waiting for server confirmation">Syncing</span>' : ''}
               ${t.syncState === 'conflict' ? '<span class="badge badge-red" title="This change conflicts with another device">Conflict</span>' : ''}
               <span class="badge ${getBadgeClass(t.due)}">${getBadgeLabel(t.due)}</span>
               <button class="icon-btn submit-btn" data-action="submit" data-index="${origIdx}" title="${t.submitted ? 'Unmark Submitted' : 'Mark Submitted'}">
-                <i class="ph${t.submitted ? '-fill' : ''} ph-paper-plane-right" ${t.submitted ? 'style="color: #3b82f6;"' : ''}></i>
+                <i class="ph${t.submitted ? '-fill' : ''} ph-paper-plane-right ${t.submitted ? 'submission-marked' : ''}"></i>
               </button>
               <button class="icon-btn delete-btn" data-action="delete" data-index="${origIdx}" title="Delete">
                 <i class="ph ph-trash"></i>
@@ -297,24 +268,25 @@
       renderList(activeTasks, list, 'No active assignments');
 
       if (submittedTasks.length > 0 && submittedSection && submittedList) {
-        submittedSection.style.display = 'block';
+        submittedSection.hidden = false;
         renderList(submittedTasks, submittedList, '');
       } else if (submittedSection) {
-        submittedSection.style.display = 'none';
+        submittedSection.hidden = true;
       }
 
     } catch (e) {
       console.error('Assignments render error:', e);
-      list.innerHTML = window.States.error(
+      list.innerHTML = Scholaris.utils.states.error(
         "Couldn't load assignments.",
-        'window._assignmentsRender()'
+        'Scholaris.utils.render.assignments()'
       );
     }
   }
 
   // Expose render globally for the error-state retry button
-  window._assignmentsRender = render;
-  window.addEventListener('scholaris:sync-state-changed', render);
+  Scholaris.utils.render = Scholaris.utils.render || {};
+  Scholaris.utils.render.assignments = render;
+  Scholaris.events?.on('sync-state-changed', render);
 
   function updateDashboard(tasks) {
     const deadlineList = document.getElementById('dashboard-deadlines');
@@ -326,7 +298,7 @@
     }).slice(0, 3);
     
     if (pending.length === 0) {
-      deadlineList.innerHTML = window.States.empty(
+      deadlineList.innerHTML = Scholaris.utils.states.empty(
         'ph ph-check-circle',
         'All caught up!',
         'No pending deadlines.'
@@ -334,20 +306,14 @@
     } else {
       deadlineList.innerHTML = pending.map(t => `
         <li class="mock-list-item">
-          <span style="display: flex; align-items: center; gap: 6px;">
+          <span class="deadline-title">
             ${escapeHtml(t.title)}
-            ${t.priority ? `<i class="ph-fill ph-flag" style="color: ${getPriorityColor(t.priority)}; font-size: 0.8rem;" title="Priority: ${t.priority}"></i>` : ''}
+            ${t.priority ? `<i class="ph-fill ph-flag priority-${t.priority}" title="Priority: ${t.priority}"></i>` : ''}
           </span>
           <span class="badge ${getBadgeClass(t.due)}">${getBadgeLabel(t.due)}</span>
         </li>
       `).join('');
     }
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
   }
 
   const handleTaskAction = async e => {
@@ -357,9 +323,9 @@
     const tasks = load();
     if (btn.dataset.action === 'toggle') {
       tasks[i].done = !tasks[i].done;
-      if (tasks[i].id && window.ScholarisApi?.isAuthenticated()) {
+      if (tasks[i].id && ScholarisApi?.isAuthenticated()) {
         try {
-          const updated = await window.ScholarisApi.updateAssignment(tasks[i].id, {
+          const updated = await ScholarisApi.updateAssignment(tasks[i].id, {
             status: tasks[i].done ? 'completed' : 'pending',
             expected_updated_at: tasks[i].updatedAt
           });
@@ -367,56 +333,56 @@
           tasks[i].syncState = 'synced';
         } catch (error) {
           tasks[i].syncState = error.queued ? 'pending' : 'conflict';
-          window.showToast?.(error.queued ? 'Marked complete offline; waiting to sync.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
+          Scholaris.utils.toast?.(error.queued ? 'Marked complete offline; waiting to sync.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
         }
       }
       save(tasks);
       render();
-      if (tasks[i].done && window.showToast) {
-        window.showToast('Task marked as completed!');
+      if (tasks[i].done && Scholaris.utils.toast) {
+        Scholaris.utils.toast('Task marked as completed!');
       }
     } else if (btn.dataset.action === 'delete') {
       const deletedTask = tasks.splice(i, 1)[0];
-      if (deletedTask.id && window.ScholarisApi?.isAuthenticated()) {
+      if (deletedTask.id && ScholarisApi?.isAuthenticated()) {
         try {
-          await window.ScholarisApi.deleteAssignment(deletedTask.id);
+          await ScholarisApi.deleteAssignment(deletedTask.id);
         } catch (error) {
-          window.showToast?.(error.queued ? 'Deletion queued until you reconnect.' : `Backend delete failed: ${error.message}`, error.queued ? 'info' : 'error');
+          Scholaris.utils.toast?.(error.queued ? 'Deletion queued until you reconnect.' : `Backend delete failed: ${error.message}`, error.queued ? 'info' : 'error');
         }
       }
       save(tasks);
       render();
-      if (window.showToast) {
-        window.showToast('Task deleted', 'success', {
+      if (Scholaris.utils.toast) {
+        Scholaris.utils.toast('Task deleted', 'success', {
           text: 'Undo',
           onClick: () => {
             const currentTasks = load();
             currentTasks.splice(i, 0, deletedTask);
             save(currentTasks);
             render();
-            if (deletedTask.id && window.ScholarisApi?.isAuthenticated()) {
+            if (deletedTask.id && ScholarisApi?.isAuthenticated()) {
               syncTaskCreate(deletedTask);
             }
-            window.showToast('Task restored');
+            Scholaris.utils.toast('Task restored');
           }
         });
       }
     } else if (btn.dataset.action === 'submit') {
       tasks[i].submitted = !tasks[i].submitted;
-      if (tasks[i].id && window.ScholarisApi?.isAuthenticated()) {
+      if (tasks[i].id && ScholarisApi?.isAuthenticated()) {
         try {
-          await window.ScholarisApi.updateAssignment(tasks[i].id, {
+          await ScholarisApi.updateAssignment(tasks[i].id, {
             status: tasks[i].submitted ? 'submitted' : (tasks[i].done ? 'completed' : 'pending'),
             expected_updated_at: tasks[i].updatedAt
           });
         } catch (error) {
           tasks[i].syncState = error.queued ? 'pending' : 'conflict';
-          window.showToast?.(error.queued ? 'Submission queued until you reconnect.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
+          Scholaris.utils.toast?.(error.queued ? 'Submission queued until you reconnect.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
         }
       }
       save(tasks);
       render();
-      if (window.showToast) window.showToast(tasks[i].submitted ? 'Assignment marked as submitted!' : 'Assignment unmarked as submitted!');
+      if (Scholaris.utils.toast) Scholaris.utils.toast(tasks[i].submitted ? 'Assignment marked as submitted!' : 'Assignment unmarked as submitted!');
     }
   };
 
@@ -490,7 +456,7 @@
     if (priorityInput) priorityInput.value = 'medium';
 
     render();
-    if (window.showToast) window.showToast('Assignment added successfully!');
+    if (Scholaris.utils.toast) Scholaris.utils.toast('Assignment added successfully!');
     titleInput.focus();
   }
 
@@ -510,7 +476,7 @@
   if (filterPriority) filterPriority.addEventListener('change', render);
   if (sortSelect) sortSelect.addEventListener('change', render);
 
-  window.addEventListener('scholaris:sync-requested', syncFromBackend);
+  Scholaris.events?.on('sync-requested', syncFromBackend);
 
   // Init
   render();
