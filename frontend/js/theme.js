@@ -1,6 +1,7 @@
 // theme.js - manages light, dark, and system theme preferences.
 
 (function () {
+  const Scholaris = window.Scholaris;
   const body = document.body;
   const themeBtn = document.getElementById('theme-btn');
   const storageKey = 'scholaris_theme';
@@ -63,7 +64,7 @@
     body.dataset.themePreference = preference;
     updateButton(preference, theme);
     if (persist) savePreference(preference);
-    window.ScholarisEvents?.emit('theme-changed', { preference, theme });
+    Scholaris.events?.emit('theme-changed', { preference, theme });
   }
 
   let preference = getInitialPreference();
