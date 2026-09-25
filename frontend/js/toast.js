@@ -1,6 +1,8 @@
 // toast.js — global toast notification system
 
 (function() {
+  const Scholaris = window.Scholaris = window.Scholaris || { utils: {} };
+  const { escapeHtml } = window.ScholarisUtils;
   // Create toast container if it doesn't exist
   let container = document.querySelector('.toast-container');
   if (!container) {
@@ -15,7 +17,7 @@
   // Map to prevent duplicate toasts
   const activeToasts = new Map();
 
-  window.showToast = function(message, type = 'success', action = null) {
+  Scholaris.utils.toast = function(message, type = 'success', action = null) {
     if (!message) return;
     const key = `${type}:${message}`;
 
@@ -86,9 +88,4 @@
     setTimeout(() => toast.remove(), 300); // Wait for transition
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
-  }
 })();
