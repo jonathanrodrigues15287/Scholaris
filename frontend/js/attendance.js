@@ -1,8 +1,10 @@
 // attendance.js — track daily lecture attendance with holiday/exam day markers
 
 (function () {
-  const state = window.ScholarisState;
-  const stateApi = window.ScholarisStateApi;
+  const Scholaris = window.Scholaris;
+  const { escapeHtml } = window.ScholarisUtils;
+  const ScholarisStateApi = window.ScholarisStateApi;
+  const ScholarisApi = window.ScholarisApi;
   const list = document.getElementById('attendance-list');
   const dateInput = document.getElementById('att-date');
   const statusSelect = document.getElementById('att-status');
@@ -28,25 +30,33 @@
   }
 
   function load() {
-    return state.attendance;
+    return ScholarisStateApi.get('attendance');
   }
 
   function save(records) {
-    stateApi.set('attendance', records, { persist: true });
+    ScholarisStateApi.set('attendance', records, { persist: true });
     render();
     updateStats();
   }
 
   function updateCourseDropdown(dateStr) {
-    courseInput.innerHTML = '';
+    courseInput.replaceChildren();
+    const addOption = (value, label) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      courseInput.appendChild(option);
+    };
     if (!dateStr) {
-      courseInput.innerHTML = '<option value="">Select date first...</option>';
+      addOption('', 'Select date first...');
       return;
     }
 
-    if (window.ScholarisApi?.isAuthenticated()) {
-      window.ScholarisApi.getCourses().then(courses => {
-        courseInput.innerHTML = '<option value="">Select course...</option>' + courses.map(course => `<option value="${course.id}">${escapeHtml(course.name)}</option>`).join('');
+    if (ScholarisApi?.isAuthenticated()) {
+      ScholarisApi.getCourses().then(courses => {
+        courseInput.replaceChildren();
+        addOption('', 'Select course...');
+        courses.forEach(course => addOption(course.id, course.name));
       }).catch(() => {});
       return;
     }
@@ -72,13 +82,13 @@
     }
 
     if (subjects.length === 0) {
-      courseInput.innerHTML = '<option value="N/A">No subjects found for ' + escapeHtml(dayStr) + '</option>';
+      addOption('N/A', `No subjects found for ${dayStr}`);
     } else {
-      courseInput.innerHTML = subjects.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      subjects.forEach(subject => addOption(subject, subject));
     }
     
     // Add a custom option just in case
-    courseInput.innerHTML += '<option value="Custom">Other (Custom)</option>';
+    addOption('Custom', 'Other (Custom)');
     handleCourseChange();
   }
 
@@ -86,18 +96,12 @@
     Validate.clearError(courseInput);
     if (customInput) Validate.clearError(customInput);
     if (courseInput.value === 'Custom') {
-      if (customWrap) customWrap.style.display = 'block';
+      if (customWrap) customWrap.hidden = false;
       customInput?.focus();
     } else {
-      if (customWrap) customWrap.style.display = 'none';
+      if (customWrap) customWrap.hidden = true;
       if (customInput) customInput.value = '';
     }
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
   }
 
   function getStatusBadgeClass(status) {
@@ -134,7 +138,7 @@
     try {
       const records = load();
       if (records.length === 0) {
-        list.innerHTML = window.States.empty(
+        list.innerHTML = Scholaris.utils.states.empty(
           'ph ph-calendar-slash',
           'No attendance records yet',
           'Log your first lecture by selecting a date and course above.'
@@ -153,17 +157,17 @@
 
         return `
           <li class="mock-list-item">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 1rem;">
-              <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+            <div class="attendance-record-row">
+              <div class="attendance-record-main">
+                <div class="attendance-record-heading">
                   <strong>${escapeHtml(r.course || 'No Course')}</strong>
                   <span class="badge ${getStatusBadgeClass(r.status)}">${getStatusLabel(r.status)}</span>
                 </div>
-                <span style="font-size: 0.85rem; color: var(--text-secondary);">
+                <span class="attendance-record-date">
                   <i class="ph ph-calendar"></i> ${dayStr}, ${dateStr}
                 </span>
               </div>
-              <button class="icon-btn" data-action="delete" data-id="${r.id || ''}" data-date="${escapeHtml(r.date)}" data-course="${escapeHtml(r.course || '')}" title="Delete record" style="color: var(--text-secondary);">
+              <button class="icon-btn attendance-delete" data-action="delete" data-id="${r.id || ''}" data-date="${escapeHtml(r.date)}" data-course="${escapeHtml(r.course || '')}" title="Delete record">
                 <i class="ph ph-trash"></i>
               </button>
             </div>
@@ -173,7 +177,7 @@
 
     } catch (e) {
       console.error('Attendance render error:', e);
-      list.innerHTML = window.States.error(
+      list.innerHTML = Scholaris.utils.states.error(
         "Couldn't load attendance records.",
         'attendance-retry-btn'
       );
@@ -182,7 +186,8 @@
   }
 
   // Expose render globally for retry
-  window._attendanceRender = render;
+  Scholaris.utils.render = Scholaris.utils.render || {};
+  Scholaris.utils.render.attendance = render;
 
   function updateStats() {
     const records = load();
@@ -200,13 +205,11 @@
   }
 
   function percentage(present, total) {
-    return total ? (present / total) * 100 : 0;
+    return Scholaris.utils.business.attendancePercentage(present, total);
   }
 
   function project(present, total, change) {
-    const nextPresent = present + (change > 0 ? change : 0);
-    const nextTotal = total + Math.abs(change);
-    return percentage(nextPresent, nextTotal);
+    return percentage(present + (change > 0 ? change : 0), total + Math.abs(change));
   }
 
   function forecastItem(course, prediction, counts) {
@@ -220,14 +223,18 @@
     const afterTwoAbsent = total ? project(present, total, -2) : 0;
     const safeAbsences = prediction?.safe_absences;
     const attendNext = prediction?.attend_next;
-    const warning = prediction?.warning || current < target;
+    const belowTarget = current < target;
+    const actionValue = belowTarget ? attendNext : safeAbsences;
+    const actionLabel = belowTarget
+      ? `consecutive attended lecture${attendNext === 1 ? '' : 's'} to reach ${target.toFixed(0)}%`
+      : `safe absence${safeAbsences === 1 ? '' : 's'} before falling below ${target.toFixed(0)}%`;
     return `<li class="mock-list-item attendance-forecast-item">
       <span class="attendance-forecast-course"><strong>${escapeHtml(course)}</strong><small>${present}/${total} attended</small></span>
       <span class="attendance-forecast-metric"><strong>${current.toFixed(1)}%</strong><small>Current</small></span>
       <span class="attendance-forecast-metric"><strong>${afterPresent.toFixed(1)}%</strong><small>After +1</small></span>
       <span class="attendance-forecast-metric"><strong>${afterFive.toFixed(1)}%</strong><small>After +5</small></span>
       <span class="attendance-forecast-metric ${afterTwoAbsent < target ? 'is-warning' : ''}"><strong>${afterTwoAbsent.toFixed(1)}%</strong><small>After -2</small></span>
-      <span class="attendance-forecast-metric ${warning ? 'is-warning' : ''}"><strong>${warning && attendNext != null ? `+${attendNext}` : `${target.toFixed(0)}%`}</strong><small>${warning && attendNext != null ? 'presents needed' : `Target · ${safeAbsences ?? 0} safe misses`}</small></span>
+      <span class="attendance-forecast-action ${belowTarget ? 'is-warning' : 'is-safe'}"><strong>${actionValue ?? 0}</strong><small>${actionLabel}</small></span>
     </li>`;
   }
 
@@ -244,12 +251,12 @@
   }
 
   async function loadForecast() {
-    if (!forecastList || !window.ScholarisApi?.isAuthenticated()) return;
+    if (!forecastList || !ScholarisApi?.isAuthenticated()) return;
     try {
       const [predictions, subjectStats, courses] = await Promise.all([
-        window.ScholarisApi.getAttendancePredictions(),
-        window.ScholarisApi.getAttendanceSubjectStats(),
-        window.ScholarisApi.getCourses()
+        ScholarisApi.getAttendancePredictions(),
+        ScholarisApi.getAttendanceSubjectStats(),
+        ScholarisApi.getCourses()
       ]);
       renderForecast(predictions, subjectStats, courses);
     } catch (error) {
@@ -258,11 +265,11 @@
   }
 
   async function syncFromBackend() {
-    if (!window.ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi?.isAuthenticated()) return;
     try {
-      const [records, courses] = await Promise.all([window.ScholarisApi.getAttendance(), window.ScholarisApi.getCourses()]);
+      const [records, courses] = await Promise.all([ScholarisApi.getAttendance(), ScholarisApi.getCourses()]);
       const names = new Map(courses.map(course => [course.id, course.name]));
-      stateApi.set('attendance', records.map(record => ({ ...record, date: record.date, courseId: record.course_id, course: names.get(record.course_id) || 'Course' })), { persist: true });
+      ScholarisStateApi.set('attendance', records.map(record => ({ ...record, date: record.date, courseId: record.course_id, course: names.get(record.course_id) || 'Course' })), { persist: true });
       render();
       updateStats();
       loadForecast();
@@ -282,19 +289,19 @@
       const targetIndex = records.findIndex(r => (recordId && r.id === recordId) || (r.date === date && r.course === course));
       if (targetIndex === -1) return;
       const deletedRecord = records.splice(targetIndex, 1)[0];
-      if (deletedRecord.id && window.ScholarisApi?.isAuthenticated()) await window.ScholarisApi.deleteAttendance(deletedRecord.id);
+      if (deletedRecord.id && ScholarisApi?.isAuthenticated()) await ScholarisApi.deleteAttendance(deletedRecord.id);
       save(records);
-      if (window.showToast) {
-        window.showToast('Attendance record deleted', 'success', {
+      if (Scholaris.utils.toast) {
+        Scholaris.utils.toast('Attendance record deleted', 'success', {
           text: 'Undo',
           onClick: async () => {
             const currentRecords = load();
             currentRecords.splice(targetIndex, 0, deletedRecord);
-            if (deletedRecord.id && window.ScholarisApi?.isAuthenticated()) {
+            if (deletedRecord.id && ScholarisApi?.isAuthenticated()) {
               const courseId = deletedRecord.courseId || deletedRecord.course_id;
               if (courseId) {
                 try {
-                  const restored = await window.ScholarisApi.createAttendance({
+                  const restored = await ScholarisApi.createAttendance({
                     date: deletedRecord.date,
                     status: deletedRecord.status,
                     course_id: Number(courseId)
@@ -306,7 +313,7 @@
               }
             }
             save(currentRecords);
-            window.showToast('Record restored');
+            Scholaris.utils.toast('Record restored');
           }
         });
       }
@@ -367,16 +374,16 @@
     const status = statusSelect.value;
     const records = load();
 
-    if (window.ScholarisApi?.isAuthenticated() && courseInput.value !== 'Custom') {
+    if (ScholarisApi?.isAuthenticated() && courseInput.value !== 'Custom') {
       const courseId = Number(course);
       try {
         const existing = records.find(record => record.date === date && Number(record.courseId || record.course_id) === courseId);
-        if (existing?.id) await window.ScholarisApi.updateAttendance(existing.id, { status });
-        else await window.ScholarisApi.createAttendance({ date, status, course_id: courseId });
+        if (existing?.id) await ScholarisApi.updateAttendance(existing.id, { status });
+        else await ScholarisApi.createAttendance({ date, status, course_id: courseId });
         await syncFromBackend();
-        window.showToast?.('Attendance synced to your account!');
+        Scholaris.utils.toast?.('Attendance synced to your account!');
       } catch (error) {
-        window.showToast?.(error.message, 'error');
+        Scholaris.utils.toast?.(error.message, 'error');
       }
       statusSelect.value = 'present';
       updateCourseDropdown(date);
@@ -389,11 +396,11 @@
       // Update existing record instead of blocking — show info
       records[existingIndex].status = status;
       save(records);
-      if (window.showToast) window.showToast(`Updated attendance for ${course} on this date.`);
+      if (Scholaris.utils.toast) Scholaris.utils.toast(`Updated attendance for ${course} on this date.`);
     } else {
       records.push({ date, status, course });
       save(records);
-      if (window.showToast) window.showToast('Attendance logged successfully!');
+      if (Scholaris.utils.toast) Scholaris.utils.toast('Attendance logged successfully!');
     }
 
     statusSelect.value = 'present';
@@ -420,7 +427,7 @@
   });
   render();
   updateStats();
-  window.addEventListener('scholaris:auth-changed', syncFromBackend);
+  Scholaris.events?.on('auth-changed', syncFromBackend);
   syncFromBackend();
   loadForecast();
 })();
