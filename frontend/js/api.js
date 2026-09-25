@@ -1,5 +1,8 @@
 // api.js - API client with offline cache and operation-queue synchronization
 (function () {
+  const Scholaris = window.Scholaris = window.Scholaris || { utils: {} };
+  const { createId } = window.ScholarisUtils;
+  const ScholarisStateApi = window.ScholarisStateApi;
   const API_BASE = localStorage.getItem('scholaris_api_base') || 'http://localhost:8000/api/v1';
   const USER_KEY = 'scholaris_api_user';
   const QUEUE_KEY = 'scholaris_sync_queue';
@@ -28,7 +31,7 @@
 
   function writeQueue(queue) {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-    window.ScholarisEvents?.emit('sync-state-changed', getSyncState());
+    Scholaris.events?.emit('sync-state-changed', getSyncState());
   }
 
   function getSyncState() {
@@ -58,7 +61,7 @@
   function enqueueOperation(path, options) {
     const queue = readQueue();
     const operation = {
-      id: globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `op-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      id: createId('op'),
       userId: currentUserId,
       path,
       method: (options.method || 'GET').toUpperCase(),
@@ -97,19 +100,13 @@
       throw error;
     }
     if (!response.ok) {
-      let detail = `Request failed (${response.status})`;
       let payload = null;
       try {
         payload = await response.json();
-        detail = payload.error?.message || payload.detail || detail;
       } catch (_) {
         // Keep the HTTP status when the server did not return JSON.
       }
-      const error = new Error(detail);
-      error.status = response.status;
-      error.code = payload?.error?.code || `HTTP_${response.status}`;
-      error.details = payload?.error?.details || [];
-      throw error;
+      throw Scholaris.utils.business.apiError(response, payload);
     }
     if (response.status === 204) return null;
     return response.json();
@@ -120,7 +117,9 @@
     const queue = readQueue().filter(operation => operation.state === 'pending' && operation.userId === currentUserId);
     if (!queue.length) return;
     syncing = true;
-    window.ScholarisEvents?.emit('sync-state-changed', getSyncState());
+    Scholaris.events?.emit('sync-started', { pending: queue.length });
+    Scholaris.events?.emit('sync-state-changed', getSyncState());
+    let syncError = null;
     try {
       for (const operation of queue) {
         const current = readQueue().find(item => item.id === operation.id && item.userId === currentUserId);
@@ -144,12 +143,18 @@
             ? { ...item, state: 'conflict', updatedAt: new Date().toISOString(), error: error.message }
             : item);
           writeQueue(latest);
+          syncError = error;
         }
       }
       setLastSync();
+      if (syncError) {
+        Scholaris.events?.emit('sync-failed', { error: syncError, state: getSyncState() });
+      } else {
+        Scholaris.events?.emit('sync-completed', { state: getSyncState() });
+      }
     } finally {
       syncing = false;
-      window.ScholarisEvents?.emit('sync-state-changed', getSyncState());
+      Scholaris.events?.emit('sync-state-changed', getSyncState());
     }
   }
 
@@ -177,18 +182,18 @@
   function saveSession(data) {
     authenticated = true;
     currentUserId = data.user?.id || null;
-    window.ScholarisStateApi?.set('authenticated', true);
+    ScholarisStateApi?.set('authenticated', true);
     if (data.user) localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-    window.ScholarisEvents?.emit('auth-changed');
+    Scholaris.events?.emit('auth-changed');
   }
 
   function clearSession() {
     authenticated = false;
     currentUserId = null;
-    window.ScholarisStateApi?.set('authenticated', false);
+    ScholarisStateApi?.set('authenticated', false);
     localStorage.removeItem('scholaris_api_token');
     localStorage.removeItem(USER_KEY);
-    window.ScholarisEvents?.emit('auth-changed');
+    Scholaris.events?.emit('auth-changed');
   }
 
   async function login(email, password) {
@@ -227,7 +232,7 @@
 
   async function getCourses() {
     const page = await request('/courses?page_size=100');
-    window.ScholarisStateApi?.set('courses', page.items);
+    ScholarisStateApi?.set('courses', page.items);
     return page.items;
   }
 
@@ -380,7 +385,7 @@
     return request(`/assignments/${id}`, { method: 'DELETE' });
   }
 
-  window.ScholarisApi = {
+  Scholaris.api = {
     API_BASE,
     checkSession,
     clearSession,
@@ -421,6 +426,7 @@
     deleteAttendance,
     updateTimetableEntry
   };
+  window.ScholarisApi = Scholaris.api;
 
   function setAuthStatus(message, authenticated) {
     const status = document.getElementById('api-auth-status');
@@ -440,11 +446,37 @@
     logoutButton.hidden = !authenticated;
   }
 
+  function setSyncStatus() {
+    const status = document.getElementById('sync-status');
+    if (!status) return;
+    const sync = getSyncState();
+    let state = 'synced';
+    let message = 'Synced';
+    if (!isAuthenticated() && sync.status === 'synced') {
+      state = 'local';
+      message = 'Saved locally';
+    } else if (!navigator.onLine) {
+      state = 'offline';
+      message = sync.pending ? 'Offline - Changes saved locally' : 'Offline mode';
+    } else if (sync.status === 'syncing') {
+      state = 'syncing';
+      message = 'Syncing...';
+    } else if (sync.status === 'conflict') {
+      state = 'conflict';
+      message = 'Sync conflict - Needs attention';
+    } else if (sync.pending) {
+      state = 'local';
+      message = 'Saved locally - Waiting for connection';
+    }
+    status.className = `sync-status sync-status-${state}`;
+    status.textContent = message;
+  }
+
   async function handleAuth(action) {
     const username = document.getElementById('api-auth-username').value.trim();
     const password = document.getElementById('api-auth-password').value;
     if (!username || password.length < 12) {
-      window.showToast?.('Enter a username and a password of at least 12 characters with upper/lowercase, a number, and a symbol.', 'error');
+      Scholaris.utils.toast?.('Enter a username and a password of at least 12 characters with upper/lowercase, a number, and a symbol.', 'error');
       return;
     }
     setAuthStatus('Connecting...', false);
@@ -452,10 +484,10 @@
       if (action === 'register') await register(username, password);
       else await login(username, password);
       setAuthStatus(`Connected as ${username}`, true);
-      window.showToast?.('Backend account connected.');
+      Scholaris.utils.toast?.('Backend account connected.');
     } catch (error) {
       setAuthStatus('Offline mode', false);
-      window.showToast?.(error.message, 'error');
+      Scholaris.utils.toast?.(error.message, 'error');
     }
   }
 
@@ -465,22 +497,26 @@
     request('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => {
       clearSession();
       setAuthStatus('Offline mode', false);
-      window.showToast?.('Disconnected from backend.');
+      Scholaris.utils.toast?.('Disconnected from backend.');
     });
   });
 
-  window.addEventListener('scholaris:auth-changed', () => {
+  Scholaris.events?.on('auth-changed', () => {
     setAuthStatus(isAuthenticated() ? 'Backend connected' : 'Offline mode', isAuthenticated());
-    window.ScholarisEvents?.emit('sync-requested');
+    Scholaris.events?.emit('sync-requested');
     flushSyncQueue();
   });
 
   window.addEventListener('online', flushSyncQueue);
-  window.addEventListener('scholaris:sync-state-changed', () => {
+  window.addEventListener('online', setSyncStatus);
+  window.addEventListener('offline', setSyncStatus);
+  Scholaris.events?.on('sync-state-changed', () => {
     setAuthStatus(isAuthenticated() ? 'Backend connected' : 'Offline mode', isAuthenticated());
+    setSyncStatus();
   });
   setInterval(flushSyncQueue, 30000);
 
   setAuthStatus('Checking session...', false);
+  setSyncStatus();
   checkSession();
 })();
