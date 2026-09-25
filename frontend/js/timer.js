@@ -25,16 +25,14 @@
   let isFocus = true;
 
   function formatTime(secs) {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+    return Scholaris.utils.business.formatTimerSeconds(secs);
   }
 
   function updateDisplay() {
     display.textContent = formatTime(remaining);
     const progress = remaining / totalSeconds;
     ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - progress);
-    ring.style.stroke = isFocus ? 'var(--accent-color)' : '#10b981';
+    ring.classList.toggle('timer-ring-break', !isFocus);
     // Update page title for background tabs
     document.title = `${formatTime(remaining)} — ${isFocus ? 'Focus' : 'Break'} | Scholaris`;
   }
@@ -96,8 +94,10 @@
   }
 
   /* ── Session History ── */
-  const state = window.ScholarisState;
-  const stateApi = window.ScholarisStateApi;
+  const Scholaris = window.Scholaris;
+  const { escapeHtml } = window.ScholarisUtils;
+  const ScholarisStateApi = window.ScholarisStateApi;
+  const ScholarisApi = window.ScholarisApi;
   const historyList = document.getElementById('session-history-list');
   const modalOverlay = document.getElementById('session-modal-overlay');
   const taskInput = document.getElementById('session-task-input');
@@ -113,7 +113,7 @@
   }
 
   function saveHistory(history) {
-    stateApi.set('studySessions', history, { persist: true });
+    ScholarisStateApi.set('studySessions', history, { persist: true });
     renderHistory();
   }
 
@@ -122,7 +122,7 @@
     try {
       const history = sessionHistory.items || loadHistory();
       if (history.length === 0) {
-        historyList.innerHTML = window.States.empty(
+        historyList.innerHTML = Scholaris.utils.states.empty(
           'ph ph-clock-countdown',
           'No sessions recorded yet',
           'Complete your first focus session to see it here.'
@@ -134,18 +134,18 @@
         const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         return `
-          <li class="mock-list-item" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px;">
-            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-weight: 600;">${h.task ? escapeHtml(h.task) : 'Focus Session'}</span>
+          <li class="mock-list-item session-history-item">
+            <div class="session-history-heading">
+              <span class="session-history-task">${h.task ? escapeHtml(h.task) : 'Focus Session'}</span>
               <span class="badge badge-blue">${h.duration} min</span>
             </div>
-            <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="ph ph-calendar"></i> ${dateStr}, ${timeStr}</span>
+            <span class="session-history-date"><i class="ph ph-calendar"></i> ${dateStr}, ${timeStr}</span>
           </li>
         `;
       }).join('');
     } catch (e) {
       console.error('Session history render error:', e);
-      historyList.innerHTML = window.States.error(
+      historyList.innerHTML = Scholaris.utils.states.error(
         "Couldn't load session history.",
         'timer-retry-btn'
       );
@@ -154,13 +154,8 @@
   }
 
   // Expose for retry button
-  window._timerHistoryRender = renderHistory;
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
-  }
+  Scholaris.utils.render = Scholaris.utils.render || {};
+  Scholaris.utils.render.timerHistory = renderHistory;
 
   function showModal() {
     modalOverlay.classList.remove('hidden');
@@ -175,29 +170,42 @@
   }
 
   async function loadSessionContext() {
-    if (!window.ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi?.isAuthenticated()) return;
     try {
       const [courses, assignments] = await Promise.all([
-        window.ScholarisApi.getCourses(),
-        window.ScholarisApi.getAssignments()
+        ScholarisApi.getCourses(),
+        ScholarisApi.getAssignments()
       ]);
-      courseSelect.innerHTML = '<option value="">No course association</option>' + courses.map(course => `<option value="${course.id}">${escapeHtml(course.name)}</option>`).join('');
-      assignmentSelect.innerHTML = '<option value="">No assignment association</option>' + assignments.filter(task => !task.is_completed).map(task => `<option value="${task.id}">${escapeHtml(task.title)}</option>`).join('');
+      const populateSelect = (select, items, label) => {
+        select.replaceChildren();
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = label;
+        select.appendChild(emptyOption);
+        items.forEach(item => {
+          const option = document.createElement('option');
+          option.value = item.id;
+          option.textContent = item.name || item.title;
+          select.appendChild(option);
+        });
+      };
+      populateSelect(courseSelect, courses, 'No course association');
+      populateSelect(assignmentSelect, assignments.filter(task => !task.is_completed), 'No assignment association');
     } catch (error) {
       console.warn('Could not load study context:', error.message);
     }
   }
 
   async function syncStudyData() {
-    if (!window.ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi?.isAuthenticated()) return;
     try {
       const [sessions, stats, suggestions] = await Promise.all([
-        window.ScholarisApi.getStudySessions(),
-        window.ScholarisApi.getStudyStats(),
-        window.ScholarisApi.getStudySuggestions()
+        ScholarisApi.getStudySessions(),
+        ScholarisApi.getStudyStats(),
+        ScholarisApi.getStudySuggestions()
       ]);
       sessionHistory.items = sessions.map(session => ({ ...session, date: session.start_time, duration: Math.round(session.duration / 60), task: '' }));
-      stateApi.set('studySessions', sessionHistory.items, { persist: true });
+      ScholarisStateApi.set('studySessions', sessionHistory.items, { persist: true });
       renderHistory();
       const dailyEl = document.getElementById('study-daily-stat');
       if (dailyEl) dailyEl.textContent = `${stats.daily} min`;
@@ -215,16 +223,16 @@
           ? suggestions.map(item => `<li class="mock-list-item"><strong>${escapeHtml(item.title)}</strong><span class="text-secondary">${escapeHtml(item.reason)} · ${item.duration_minutes} min</span></li>`).join('')
           : '<li class="mock-list-item empty-state">No urgent study recommendations.</li>';
       }
-      window.ScholarisEvents?.emit('study-updated');
+      Scholaris.events?.emit('study-updated');
     } catch (error) {
       console.warn('Could not load study analytics:', error.message);
     }
   }
 
   async function saveSession(taskName) {
-    if (window.ScholarisApi?.isAuthenticated()) {
+    if (ScholarisApi?.isAuthenticated()) {
       try {
-        await window.ScholarisApi.createStudySession({
+        await ScholarisApi.createStudySession({
           start_time: new Date(Date.now() - lastSessionDuration * 60000).toISOString(),
           duration: lastSessionDuration * 60,
           course_id: courseSelect.value ? Number(courseSelect.value) : null,
@@ -233,7 +241,7 @@
         await syncStudyData();
         return;
       } catch (error) {
-        window.showToast?.(`Backend save failed: ${error.message}`, 'error');
+        Scholaris.utils.toast?.(`Backend save failed: ${error.message}`, 'error');
       }
     }
     const history = loadHistory();
@@ -286,5 +294,5 @@
   updateDisplay();
   renderHistory();
   syncStudyData();
-  window.addEventListener('scholaris:auth-changed', syncStudyData);
+  Scholaris.events?.on('auth-changed', syncStudyData);
 })();
