@@ -1,6 +1,7 @@
 // nav.js — section switching and mobile collapsible sidebar
 
 (function () {
+  const Scholaris = window.Scholaris;
   const navLinks = document.querySelectorAll('.sidebar .nav-link');
   const sections = document.querySelectorAll('.section');
   const hamburgerBtn = document.getElementById('hamburger-btn');
@@ -97,7 +98,7 @@
     a.download = `scholaris_backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    if (window.showToast) window.showToast('Data exported successfully!');
+    if (Scholaris.utils.toast) Scholaris.utils.toast('Data exported successfully!');
   });
 
   importInput?.addEventListener('change', (e) => {
@@ -120,32 +121,33 @@
         if (importedCount === 0) {
           throw new Error('No Scholaris data found in the imported file.');
         }
-        if (window.showToast) window.showToast('Data imported successfully! Reloading...');
+        if (Scholaris.utils.toast) Scholaris.utils.toast('Data imported successfully! Reloading...');
         setTimeout(() => window.location.reload(), 1500);
       } catch (err) {
-        if (window.showToast) window.showToast(`Failed to import data: ${err.message}`, 'error');
+        if (Scholaris.utils.toast) Scholaris.utils.toast(`Failed to import data: ${err.message}`, 'error');
       } finally {
         e.target.value = '';
       }
     };
     reader.onerror = () => {
-      if (window.showToast) window.showToast('Failed to read file.', 'error');
+      if (Scholaris.utils.toast) Scholaris.utils.toast('Failed to read file.', 'error');
       e.target.value = '';
     };
     reader.readAsText(file);
   });
 
   clearBtn?.addEventListener('click', async () => {
-    if (await window.confirmAction('Clear all locally cached Scholaris data? This cannot be undone.', { title: 'Clear local data', confirmLabel: 'Clear data', danger: true })) {
+    if (await Scholaris.utils.confirm('Clear all locally cached Scholaris data? This cannot be undone.', { title: 'Clear local data', confirmLabel: 'Clear data', danger: true })) {
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key.startsWith('scholaris_')) keysToRemove.push(key);
       }
       keysToRemove.forEach(k => localStorage.removeItem(k));
-      if (window.showToast) window.showToast('All data cleared. Reloading...');
+      if (Scholaris.utils.toast) Scholaris.utils.toast('All data cleared. Reloading...');
       setTimeout(() => window.location.reload(), 1500);
     }
   });
 
 })();
+
