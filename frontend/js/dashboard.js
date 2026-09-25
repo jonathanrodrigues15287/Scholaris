@@ -1,12 +1,9 @@
 // dashboard.js - renders the authenticated dashboard from one backend snapshot.
 (function () {
-  const state = window.ScholarisState || {};
-
-  function escapeHtml(value) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(String(value ?? '')));
-    return div.innerHTML;
-  }
+  const Scholaris = window.Scholaris;
+  const { escapeHtml } = window.ScholarisUtils;
+  const ScholarisStateApi = window.ScholarisStateApi;
+  const ScholarisApi = window.ScholarisApi;
 
   function number(value, fallback = 0) {
     const parsed = Number(value);
@@ -150,10 +147,10 @@
   }
 
   async function loadDashboard() {
-    if (!window.ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi?.isAuthenticated()) return;
     try {
-      const [data, goal] = await Promise.all([window.ScholarisApi.getDashboard(), window.ScholarisApi.getStudyGoal().catch(() => state.studyGoal)]);
-      if (goal) window.ScholarisStateApi?.set('studyGoal', goal, { silent: true });
+      const [data, goal] = await Promise.all([ScholarisApi.getDashboard(), ScholarisApi.getStudyGoal().catch(() => ScholarisStateApi.get('studyGoal'))]);
+      if (goal) ScholarisStateApi.set('studyGoal', goal, { silent: true });
       renderClasses();
       renderProgress(data, goal);
       renderDeadlines(data);
@@ -166,9 +163,9 @@
     }
   }
 
-  window.ScholarisEvents?.on('dashboard:refresh', loadDashboard);
-  window.ScholarisEvents?.on('auth-changed', loadDashboard);
-  window.ScholarisEvents?.on('sync-requested', loadDashboard);
-  window.ScholarisEvents?.on('study-updated', loadDashboard);
+  Scholaris.events?.on('dashboard:refresh', loadDashboard);
+  Scholaris.events?.on('auth-changed', loadDashboard);
+  Scholaris.events?.on('sync-requested', loadDashboard);
+  Scholaris.events?.on('study-updated', loadDashboard);
   loadDashboard();
 })();
