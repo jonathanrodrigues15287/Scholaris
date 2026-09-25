@@ -13,8 +13,10 @@
     monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday',
     thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday', sunday: 'Sunday'
   };
-  const state = window.ScholarisState;
-  const stateApi = window.ScholarisStateApi;
+  const Scholaris = window.Scholaris;
+  const { createId, escapeHtml } = window.ScholarisUtils;
+  const ScholarisStateApi = window.ScholarisStateApi;
+  const ScholarisApi = window.ScholarisApi;
 
   /* DOM refs */
   const uploadZone   = document.getElementById('tt-upload-zone');
@@ -36,11 +38,8 @@
 
   // Modal elements
   const modalOverlay = document.getElementById('tt-modal-overlay');
-  const modalForm = document.getElementById('tt-modal-form');
-  const modalTitle = document.getElementById('tt-modal-title');
   const modalId = document.getElementById('tt-modal-id');
   const modalSubject = document.getElementById('tt-modal-subject');
-  const modalDay = document.getElementById('tt-modal-day');
   const modalStart = document.getElementById('tt-modal-start');
   const modalEnd = document.getElementById('tt-modal-end');
   const modalRoom = document.getElementById('tt-modal-room');
@@ -90,10 +89,9 @@
     filters.course = courseFilter?.value || '';
     filters.room = roomFilter?.value || '';
     filters.faculty = facultyFilter?.value || '';
-    renderGrid();
   }));
-  window.addEventListener('scholaris:sync-requested', () => {
-    if (window.ScholarisApi?.isAuthenticated()) loadRemoteSchedule();
+  Scholaris.events?.on('sync-requested', () => {
+    if (ScholarisApi?.isAuthenticated()) loadRemoteSchedule();
   });
 
   /* ===== 2. FILE PROCESSING PIPELINE ===== */
@@ -107,7 +105,7 @@
     output.hidden       = true;
     // Show loading state in dashboard Up Next while OCR is running
     const upNextList = document.getElementById('dashboard-up-next');
-    if (upNextList) upNextList.innerHTML = window.States.loading('Scanning timetable...');
+    if (upNextList) upNextList.innerHTML = Scholaris.utils.states.loading('Scanning timetable...');
     setProgress(0, 'Reading file...');
 
     try {
@@ -266,7 +264,7 @@
       for (const [day, subject] of Object.entries(row.slots)) {
         if (subject) {
           flatEvents.push({
-            id: 'tt_' + Math.random().toString(36).substr(2, 9),
+            id: createId('tt_'),
             subject, day, startTime: start, endTime: end, room: '', faculty: '', color: 'blue'
           });
         }
@@ -316,7 +314,7 @@
         const subject = cleanOcrCell(cellWords.map(word => word.text).join(' '));
         if (subject.length < 2 || /^(day|time|room|class)$/i.test(subject)) return;
         events.push({
-          id: 'tt_' + Math.random().toString(36).slice(2, 11),
+          id: createId('tt_'),
           subject,
           day: DAY_ABBREV[dayWord.text.toLowerCase().replace(/[^a-z]/g, '')],
           startTime: column.time,
@@ -363,7 +361,7 @@
         if (index >= uniqueTimes.length || subject.length < 2) return;
         const startTime = uniqueTimes[index];
         result.push({
-          id: 'tt_' + Math.random().toString(36).slice(2, 11),
+          id: createId('tt_'),
           subject,
           day,
           startTime,
@@ -437,14 +435,14 @@
   /* ===== 7. GRID RENDERER ===== */
   function renderGrid() {
     refreshFilterOptions();
-    gridHead.innerHTML = '';
+    gridHead.replaceChildren();
     const trH = document.createElement('tr');
     const th0 = document.createElement('th'); th0.textContent = 'Time'; th0.className = 'tt-th-time'; trH.appendChild(th0);
     const visibleDays = viewMode === 'day' ? [selectedViewDay] : activeDays;
     for (const day of visibleDays) { const th = document.createElement('th'); th.textContent = day; trH.appendChild(th); }
     gridHead.appendChild(trH);
 
-    gridBody.innerHTML = '';
+    gridBody.replaceChildren();
 
     // 1. Find all unique time blocks
     const timeBlocks = new Set();
@@ -453,7 +451,13 @@
     const sortedBlocks = Array.from(timeBlocks).sort((a, b) => a.localeCompare(b));
 
     if (sortedBlocks.length === 0) {
-      gridBody.innerHTML = `<tr><td colspan="${visibleDays.length + 1}" style="text-align: center; padding: 2rem;">No classes scheduled. Click 'Add Time Slot' below.</td></tr>`;
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = visibleDays.length + 1;
+      cell.className = 'tt-empty-cell';
+      cell.textContent = "No classes scheduled. Click 'Add Time Slot' below.";
+      row.appendChild(cell);
+      gridBody.appendChild(row);
       return;
     }
 
@@ -463,7 +467,13 @@
       
       const tdT = document.createElement('td'); 
       tdT.className = 'tt-td-time';
-      tdT.innerHTML = `<div style="font-weight: 500;">${format12H(start)}</div><div style="font-size: 0.75rem; color: var(--text-secondary); opacity: 0.8;">${format12H(end)}</div>`;
+      const startLabel = document.createElement('div');
+      startLabel.className = 'tt-time-start';
+      startLabel.textContent = format12H(start);
+      const endLabel = document.createElement('div');
+      endLabel.className = 'tt-time-end';
+      endLabel.textContent = format12H(end);
+      tdT.append(startLabel, endLabel);
       tr.appendChild(tdT);
 
       for (const day of visibleDays) {
@@ -507,7 +517,11 @@
     options.forEach(([select, values]) => {
       if (!select) return;
       const selected = select.value;
-      select.innerHTML = `<option value="">All ${select === courseFilter ? 'courses' : select === roomFilter ? 'rooms' : 'faculty'}</option>`;
+      select.replaceChildren();
+      const allOption = document.createElement('option');
+      allOption.value = '';
+      allOption.textContent = `All ${select === courseFilter ? 'courses' : select === roomFilter ? 'rooms' : 'faculty'}`;
+      select.appendChild(allOption);
       values.forEach(value => {
         const option = document.createElement('option');
         option.value = value;
@@ -532,14 +546,14 @@
       if (!item || (item.day === cell.dataset.day && item.startTime === cell.dataset.start)) return;
       const target = { day: cell.dataset.day, startTime: cell.dataset.start, endTime: addDuration(cell.dataset.start, duration(item)) };
       if (hasConflict({ ...item, ...target }, item.id)) {
-        window.showToast?.('That move conflicts with another class.', 'error');
+        Scholaris.utils.toast?.('That move conflicts with another class.', 'error');
         return;
       }
-      if (!await window.confirmAction(`Move ${item.subject} to ${target.day} at ${format12H(target.startTime)}?`, { title: 'Move class', confirmLabel: 'Move class' })) return;
+      if (!await Scholaris.utils.confirm(`Move ${item.subject} to ${target.day} at ${format12H(target.startTime)}?`, { title: 'Move class', confirmLabel: 'Move class' })) return;
       Object.assign(item, target);
       persistScheduleState();
       renderGrid();
-      window.showToast?.('Class moved. Save the schedule to sync it.', 'success');
+      Scholaris.utils.toast?.('Class moved. Save the schedule to sync it.', 'success');
     });
   }
 
@@ -566,8 +580,8 @@
   }
 
   function persistScheduleState() {
-    stateApi.set('timetable', schedule, { persist: true });
-    stateApi.set('timetableActiveDays', activeDays, { persist: true, silent: true });
+    ScholarisStateApi.set('timetable', schedule, { persist: true });
+    ScholarisStateApi.set('timetableActiveDays', activeDays, { persist: true, silent: true });
   }
 
   function refreshFreeSummary() {
@@ -586,9 +600,9 @@
   async function refreshGapSummary() {
     const summary = document.getElementById('tt-gap-summary');
     if (!summary) return;
-    if (window.ScholarisApi?.isAuthenticated()) {
+    if (ScholarisApi?.isAuthenticated()) {
       try {
-        const gaps = await window.ScholarisApi.getTimetableGaps();
+        const gaps = await ScholarisApi.getTimetableGaps();
         summary.textContent = gaps.length
           ? `${gaps.length} gap${gaps.length === 1 ? '' : 's'} between lectures this week.`
           : 'No gaps between lectures this week.';
@@ -610,23 +624,23 @@
   }
 
   async function duplicateWeek() {
-    if (!window.ScholarisApi?.isAuthenticated()) {
-      window.showToast?.('Connect your account before duplicating a week.', 'error');
+    if (!ScholarisApi?.isAuthenticated()) {
+      Scholaris.utils.toast?.('Connect your account before duplicating a week.', 'error');
       return;
     }
     const rawSemester = window.prompt('Optional target semester ID (leave blank for the current semester):');
     if (rawSemester === null) return;
     const semesterId = rawSemester.trim() ? Number(rawSemester.trim()) : null;
     if (rawSemester.trim() && (!Number.isInteger(semesterId) || semesterId < 1)) {
-      window.showToast?.('Enter a valid semester ID.', 'error');
+      Scholaris.utils.toast?.('Enter a valid semester ID.', 'error');
       return;
     }
     try {
-      await window.ScholarisApi.duplicateTimetableWeek(semesterId);
+      await ScholarisApi.duplicateTimetableWeek(semesterId);
       await loadRemoteSchedule();
-      window.showToast?.('Week duplicated.', 'success');
+      Scholaris.utils.toast?.('Week duplicated.', 'success');
     } catch (error) {
-      window.showToast?.(error.message, 'error');
+      Scholaris.utils.toast?.(error.message, 'error');
     }
   }
 
@@ -638,18 +652,14 @@
     return `${h}:${m.toString().padStart(2, '0')} ${ampm}`;
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement('div'); div.appendChild(document.createTextNode(str)); return div.innerHTML;
-  }
-
   function buildEventChip(event) {
     const wrap = document.createElement('div');
     wrap.className = `tt-chip tt-chip-${event.color || 'blue'}`;
     wrap.draggable = true;
     wrap.dataset.eventId = event.id;
     wrap.innerHTML = `
-      <div style="font-weight: 600; font-size: 0.85rem;">${escapeHtml(event.subject)}</div>
-      ${event.room ? `<div style="font-size: 0.7rem; opacity: 0.85; margin-top: 2px;"><i class="ph ph-map-pin"></i> ${escapeHtml(event.room)}</div>` : ''}
+      <div class="tt-chip-subject">${escapeHtml(event.subject)}</div>
+      ${event.room ? `<div class="tt-chip-room"><i class="ph ph-map-pin"></i> ${escapeHtml(event.room)}</div>` : ''}
       <span class="tt-resize-handle" title="Drag to resize class"></span>
     `;
     wrap.addEventListener('dragstart', dragEvent => {
@@ -691,13 +701,13 @@
     const event = resizeState.event;
     resizeState = null;
     if (hasConflict(event, event.id)) {
-      window.showToast?.('That duration conflicts with another class.', 'error');
+      Scholaris.utils.toast?.('That duration conflicts with another class.', 'error');
       await loadSaved();
       return;
     }
-    if (await window.confirmAction(`Resize ${event.subject} to end at ${format12H(event.endTime)}?`, { title: 'Resize class', confirmLabel: 'Resize class' })) {
+    if (await Scholaris.utils.confirm(`Resize ${event.subject} to end at ${format12H(event.endTime)}?`, { title: 'Resize class', confirmLabel: 'Resize class' })) {
       persistScheduleState();
-      window.showToast?.('Class duration updated. Save the schedule to sync it.', 'success');
+      Scholaris.utils.toast?.('Class duration updated. Save the schedule to sync it.', 'success');
     } else {
       await loadSaved();
     }
@@ -816,7 +826,7 @@
       const idx = schedule.findIndex(e => String(e.id) === String(id));
       if (idx > -1) schedule[idx] = { ...schedule[idx], ...eventData };
     } else {
-      eventData.id = 'tt_' + Math.random().toString(36).substr(2, 9);
+      eventData.id = createId('tt_');
       schedule.push(eventData);
     }
 
@@ -830,13 +840,13 @@
     schedule = schedule.filter(e => String(e.id) !== String(classId));
     closeModal();
     renderGrid();
-    if (window.showToast && deletedClass) {
-      window.showToast('Class deleted', 'success', {
+    if (Scholaris.utils.toast && deletedClass) {
+      Scholaris.utils.toast('Class deleted', 'success', {
         text: 'Undo',
         onClick: () => {
           schedule.push(deletedClass);
           renderGrid();
-          window.showToast('Class restored');
+          Scholaris.utils.toast('Class restored');
         }
       });
     }
@@ -845,11 +855,11 @@
   modalDuplicateBtn?.addEventListener('click', () => {
     const e = schedule.find(x => String(x.id) === String(modalId.value));
     if (!e) return;
-    const copy = { ...e, id: 'tt_' + Math.random().toString(36).substr(2, 9) };
+    const copy = { ...e, id: createId('tt_') };
     schedule.push(copy);
     closeModal();
     renderGrid();
-    if (window.showToast) window.showToast('Class duplicated! You can now click it to edit the day or time.');
+    if (Scholaris.utils.toast) Scholaris.utils.toast('Class duplicated! You can now click it to edit the day or time.');
   });
 
   /* ===== 8. ADD / SAVE / LOAD ===== */
@@ -860,28 +870,28 @@
   async function saveSchedule() {
     const invalid = schedule.find(event => !event.subject?.trim() || !event.day || !event.startTime || !event.endTime || event.startTime >= event.endTime);
     if (invalid) {
-      window.showToast?.('Review the timetable: every class needs a subject and valid times.', 'error');
+      Scholaris.utils.toast?.('Review the timetable: every class needs a subject and valid times.', 'error');
       return;
     }
     const conflicts = schedule.some((entry, index) => schedule.slice(index + 1).some(other =>
       entry.day === other.day && entry.startTime < other.endTime && entry.endTime > other.startTime
     ));
     if (conflicts) {
-      window.showToast?.('Resolve overlapping classes before saving.', 'error');
+      Scholaris.utils.toast?.('Resolve overlapping classes before saving.', 'error');
       return;
     }
-    if (!await window.confirmAction('Save this reviewed timetable to your Scholaris account?', { title: 'Save timetable', confirmLabel: 'Save schedule' })) return;
-    if (window.ScholarisApi?.isAuthenticated()) {
+    if (!await Scholaris.utils.confirm('Save this reviewed timetable to your Scholaris account?', { title: 'Save timetable', confirmLabel: 'Save schedule' })) return;
+    if (ScholarisApi?.isAuthenticated()) {
       try {
         await saveRemoteSchedule();
-        window.showToast?.('Timetable synced to your account.', 'success');
+        Scholaris.utils.toast?.('Timetable synced to your account.', 'success');
       } catch (error) {
-        window.showToast?.(error.message, 'error');
+        Scholaris.utils.toast?.(error.message, 'error');
         return;
       }
     }
-    stateApi.set('timetable', schedule, { persist: true });
-    stateApi.set('timetableActiveDays', activeDays, { persist: true });
+    ScholarisStateApi.set('timetable', schedule, { persist: true });
+    ScholarisStateApi.set('timetableActiveDays', activeDays, { persist: true });
     const orig = saveBtn.innerHTML;
     saveBtn.innerHTML = '<i class="ph ph-check"></i> Saved!';
     saveBtn.classList.add('btn-saved');
@@ -890,10 +900,10 @@
   }
 
   async function saveRemoteSchedule() {
-    const existing = await window.ScholarisApi.getTimetable();
+    const existing = await ScholarisApi.getTimetable();
     const keptIds = new Set();
     for (const event of schedule) {
-      const course = await window.ScholarisApi.getOrCreateCourse(event.subject);
+      const course = await ScholarisApi.getOrCreateCourse(event.subject);
       const payload = {
         day: event.day,
         start_time: event.startTime,
@@ -903,21 +913,21 @@
         course_id: course.id
       };
       if (Number.isInteger(event.id)) {
-        await window.ScholarisApi.updateTimetableEntry(event.id, payload);
+        await ScholarisApi.updateTimetableEntry(event.id, payload);
         keptIds.add(event.id);
       } else {
-        const saved = await window.ScholarisApi.createTimetableEntry(payload);
+        const saved = await ScholarisApi.createTimetableEntry(payload);
         event.id = saved.id;
         keptIds.add(saved.id);
       }
     }
     await Promise.all(existing.filter(entry => !keptIds.has(entry.id)).map(entry =>
-      window.ScholarisApi.deleteTimetableEntry(entry.id)
+      ScholarisApi.deleteTimetableEntry(entry.id)
     ));
   }
 
   async function loadSaved() {
-    if (window.ScholarisApi?.isAuthenticated()) {
+    if (ScholarisApi?.isAuthenticated()) {
       await loadRemoteSchedule();
       updateDashboard();
       return;
@@ -937,7 +947,7 @@
               for (const [day, subject] of Object.entries(row.slots)) {
                 if (subject) {
                   flatEvents.push({
-                    id: 'tt_' + Math.random().toString(36).substr(2, 9),
+                    id: createId('tt_'),
                     subject, day, startTime: start, endTime: end, room: '', faculty: '', color: 'blue'
                   });
                 }
@@ -952,14 +962,14 @@
         }
     } catch (_) {}
     updateDashboard();
-    if (window.ScholarisApi?.isAuthenticated()) await loadRemoteSchedule();
+    if (ScholarisApi?.isAuthenticated()) await loadRemoteSchedule();
   }
 
   async function loadRemoteSchedule() {
     try {
       const [entries, courses] = await Promise.all([
-        window.ScholarisApi.getTimetable(),
-        window.ScholarisApi.getCourses()
+        ScholarisApi.getTimetable(),
+        ScholarisApi.getCourses()
       ]);
       if (!entries.length) return;
       const courseNames = new Map(courses.map(course => [course.id, course.name]));
@@ -974,8 +984,8 @@
         color: 'blue'
       }));
       activeDays = [...new Set(schedule.map(entry => entry.day))];
-      stateApi.set('timetable', schedule, { persist: true });
-      stateApi.set('timetableActiveDays', activeDays, { persist: true });
+      ScholarisStateApi.set('timetable', schedule, { persist: true });
+      ScholarisStateApi.set('timetableActiveDays', activeDays, { persist: true });
       uploadZone.hidden = true;
       output.hidden = false;
       renderGrid();
@@ -990,7 +1000,7 @@
     if (!list) return;
 
     if (!schedule || schedule.length === 0) {
-      list.innerHTML = window.States.empty(
+      list.innerHTML = Scholaris.utils.states.empty(
         'ph ph-calendar-blank',
         'No timetable yet',
         'Upload your timetable to see upcoming classes here.',
@@ -1036,7 +1046,7 @@
     upcoming.sort((a, b) => a.startMins - b.startMins);
 
     if (upcoming.length === 0) {
-      list.innerHTML = window.States.empty(
+      list.innerHTML = Scholaris.utils.states.empty(
         'ph ph-sun-horizon',
         'No classes today',
         'Enjoy your free time! Check back tomorrow.'
@@ -1046,8 +1056,8 @@
         <li class="mock-list-item">
           <div>
             <strong>${escapeHtml(u.subject)}</strong>
-            <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 6px;">(${u.dayLabel})</span>
-            ${u.room ? `<div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"><i class="ph ph-map-pin"></i> ${escapeHtml(u.room)}</div>` : ''}
+            <span class="tt-upcoming-day">(${u.dayLabel})</span>
+            ${u.room ? `<div class="tt-upcoming-room"><i class="ph ph-map-pin"></i> ${escapeHtml(u.room)}</div>` : ''}
           </div>
           <span class="badge badge-${u.color || 'blue'}">${format12H(u.startTime)} - ${format12H(u.endTime)}</span>
         </li>
