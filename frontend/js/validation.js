@@ -10,7 +10,9 @@
  *   Validate.isValidFutureDate("2024-01-15") — boolean (not strictly past)
  */
 
-window.Validate = (function () {
+const validationNamespace = window.Scholaris = window.Scholaris || { utils: {} };
+
+validationNamespace.utils.validation = (function () {
 
   /** Attach an inline error below a field */
   function setError(field, message) {
