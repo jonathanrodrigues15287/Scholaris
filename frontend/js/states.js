@@ -3,7 +3,10 @@
  * Used by all section modules to render consistent UI feedback.
  */
 
-window.States = (function () {
+const statesNamespace = window.Scholaris = window.Scholaris || { utils: {} };
+const { escapeHtml } = window.ScholarisUtils;
+
+statesNamespace.utils.states = (function () {
 
   /**
    * Renders an empty-state block.
@@ -63,13 +66,8 @@ window.States = (function () {
   return { empty, loading, skeleton, error };
 })();
 
-window.confirmAction = function (message, { title = 'Please confirm', confirmLabel = 'Confirm', danger = false } = {}) {
+statesNamespace.utils.confirm = function (message, { title = 'Please confirm', confirmLabel = 'Confirm', danger = false } = {}) {
   return new Promise(resolve => {
-    const escapeHtml = value => {
-      const node = document.createElement('div');
-      node.textContent = value;
-      return node.innerHTML;
-    };
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay confirm-overlay';
     overlay.innerHTML = `
