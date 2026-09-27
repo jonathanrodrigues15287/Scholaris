@@ -123,6 +123,55 @@
   font-size: 0.95rem;
 }
 
+.attendance-record-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+}
+
+.attendance-record-main {
+  flex: 1;
+}
+
+.attendance-record-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.attendance-record-date {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.attendance-delete {
+  color: var(--text-secondary);
+}
+
+.semester-card {
+  margin-bottom: 1.5rem;
+}
+
+.semester-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.danger-action {
+  color: var(--badge-red-text, #991b1b);
+}
+
+.cgpa-result-box {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+}
+
 .attendance-forecast-card header {
   margin-bottom: 12px;
 }
@@ -153,6 +202,41 @@
   color: #dc2626;
 }
 
+.attendance-forecast-action {
+  min-width: 170px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-muted, rgba(15, 118, 110, 0.08));
+}
+
+.attendance-forecast-action strong {
+  display: block;
+  font-size: 1.15rem;
+}
+
+.attendance-forecast-action small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.attendance-forecast-action.is-warning {
+  border-left-color: #dc2626;
+}
+
+.attendance-forecast-action.is-warning strong {
+  color: #dc2626;
+}
+
+.attendance-forecast-action.is-safe {
+  border-left-color: #15803d;
+}
+
+.attendance-forecast-action.is-safe strong {
+  color: #15803d;
+}
+
 @media (max-width: 768px) {
   .attendance-forecast-item {
     grid-template-columns: 1fr 1fr;
@@ -160,6 +244,10 @@
 
   .attendance-forecast-metric {
     text-align: left;
+  }
+
+  .attendance-forecast-action {
+    min-width: 0;
   }
 }
 
@@ -228,6 +316,10 @@
   transition: stroke-dashoffset 1s linear, stroke 0.4s ease;
 }
 
+.timer-ring-break {
+  stroke: #10b981;
+}
+
 .timer-controls {
   display: flex;
   gap: 12px;
@@ -239,6 +331,29 @@
 .history-card {
   max-height: 400px;
   overflow-y: auto;
+}
+
+.session-history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.session-history-heading {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.session-history-task {
+  font-weight: 600;
+}
+
+.session-history-date {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 /* ── CGPA Calculator ── */
@@ -279,7 +394,7 @@
 }
 
 .cgpa-result-box {
-  margin-top: 20px;
+  margin-top: 1rem;
   padding: 16px 20px;
   border-radius: 12px;
   background: var(--bg-color);
