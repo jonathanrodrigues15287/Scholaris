@@ -55,6 +55,27 @@
   font-size: 0.95rem;
 }
 
+.priority-high { color: #ef4444; }
+.priority-medium { color: #f59e0b; }
+.priority-low { color: #10b981; }
+.priority-undefined { color: var(--text-secondary); }
+
+.task-left .ph-flag,
+.deadline-title .ph-flag {
+  margin-left: 4px;
+  font-size: 0.8rem;
+}
+
+.submission-marked {
+  color: #3b82f6;
+}
+
+.deadline-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .task-done .task-title {
   text-decoration: line-through;
   opacity: 0.5;
