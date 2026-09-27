@@ -177,6 +177,42 @@
   user-select: none;
 }
 
+.tt-empty-cell {
+  text-align: center;
+  padding: 2rem;
+}
+
+.tt-time-start {
+  font-weight: 500;
+}
+
+.tt-time-end,
+.tt-upcoming-day,
+.tt-upcoming-room {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.8;
+}
+
+.tt-upcoming-day {
+  margin-left: 6px;
+}
+
+.tt-upcoming-room {
+  margin-top: 2px;
+}
+
+.tt-chip-subject {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.tt-chip-room {
+  font-size: 0.7rem;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
 .tt-chip:active,
 .tt-chip.is-dragging {
   cursor: grabbing;
