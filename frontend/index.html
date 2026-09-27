@@ -59,6 +59,27 @@
           </a>
         </li>
       </ul>
+      <div class="data-actions" aria-label="Data management">
+        <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
+          <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
+        </a>
+        <label class="nav-link" tabindex="0" aria-label="Import data from JSON file">
+          <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
+          <input type="file" id="import-data-file" accept=".json" hidden>
+        </label>
+        <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
+          <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
+        </a>
+      </div>
+      <div class="api-auth" id="api-auth" aria-label="Backend account controls">
+        <span class="api-auth-status" id="api-auth-status">Offline mode</span>
+        <span class="sync-status sync-status-local" id="sync-status" role="status" aria-live="polite">Saved locally</span>
+        <input class="api-auth-input" id="api-auth-username" type="text" placeholder="Username" aria-label="Account username" autocomplete="username">
+        <input class="api-auth-input" id="api-auth-password" type="password" placeholder="Password" aria-label="Account password">
+        <button class="btn btn-secondary api-auth-btn" id="api-login-btn" type="button">Login</button>
+        <button class="btn api-auth-btn" id="api-register-btn" type="button">Register</button>
+        <button class="btn btn-secondary api-auth-btn" id="api-logout-btn" type="button" hidden>Logout</button>
+      </div>
     </nav>
   </aside>
 
@@ -79,26 +100,6 @@
         <!-- Icon set by theme.js at runtime -->
         <i class="ph ph-sun" aria-hidden="true"></i>
       </button>
-      <div class="api-auth" id="api-auth" aria-label="Backend account controls">
-        <span class="api-auth-status" id="api-auth-status">Offline mode</span>
-        <input class="api-auth-input" id="api-auth-username" type="text" placeholder="Username" aria-label="Account username" autocomplete="username">
-        <input class="api-auth-input" id="api-auth-password" type="password" placeholder="Password" aria-label="Account password">
-        <button class="btn btn-secondary api-auth-btn" id="api-login-btn" type="button">Login</button>
-        <button class="btn api-auth-btn" id="api-register-btn" type="button">Register</button>
-        <button class="btn btn-secondary api-auth-btn" id="api-logout-btn" type="button" hidden>Logout</button>
-      </div>
-      <div class="data-actions" aria-label="Data management">
-        <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
-          <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
-        </a>
-        <label class="nav-link" tabindex="0" aria-label="Import data from JSON file">
-          <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
-          <input type="file" id="import-data-file" accept=".json" hidden>
-        </label>
-        <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
-          <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
-        </a>
-      </div>
     </header>
 
     <!-- Content Sections -->
@@ -352,7 +353,7 @@
             </li>
           </ul>
 
-          <div id="submitted-assignments-section" class="mt-2" style="display: none;">
+          <div id="submitted-assignments-section" class="mt-2" hidden>
             <h3 class="card-subtitle mb-1 text-secondary">Submitted Assignments</h3>
             <ul class="mock-list" id="submitted-assignments-list">
             </ul>
@@ -516,7 +517,7 @@
                 <option value="">Select date first...</option>
               </select>
             </div>
-            <div id="att-custom-wrap" style="display: none;">
+            <div id="att-custom-wrap" hidden>
               <label class="form-label" for="att-custom-course">Custom Course</label>
               <input type="text" id="att-custom-course" class="form-control" placeholder="Enter course name..." aria-label="Custom course name">
             </div>
@@ -575,7 +576,8 @@
   <script src="js/core/events.js"></script>
   <script src="js/core/storage.js"></script>
   <script src="js/core/dom.js"></script>
-  <script src="js/core/utils.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/core/business.js"></script>
   <script src="js/validation.js"></script>
   <script src="js/api.js"></script>
   <script src="js/states.js"></script>
@@ -627,6 +629,11 @@
             <label class="form-label" for="tt-modal-end">End Time</label>
             <input type="time" id="tt-modal-end" class="form-control" required>
           </div>
+        </div>
+
+        <div class="form-group mb-1">
+          <label class="form-label" for="tt-modal-duration">Class duration (minutes)</label>
+          <input type="number" id="tt-modal-duration" class="form-control" min="15" max="480" step="15" required>
         </div>
 
         <!-- Conflict Warning Placeholder -->
