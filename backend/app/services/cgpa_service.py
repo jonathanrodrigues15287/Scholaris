@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.schemas.cgpa import CgpaResult, GpaResult, SemesterGpaResult, SemesterResult
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -121,6 +123,22 @@ def update_academic_course(db: Session, owner_id: int, course_id: int, data: Aca
 	db.commit()
 	db.refresh(course)
 	return course
+
+
+def delete_academic_course(db: Session, owner_id: int, course_id: int) -> None:
+	course = require_course(db, owner_id, course_id)
+	course.deleted_at = datetime.now(timezone.utc)
+	db.commit()
+
+
+def delete_academic_semester(db: Session, owner_id: int, semester_id: int) -> None:
+	semester = require_semester(db, owner_id, semester_id)
+	deleted_at = datetime.now(timezone.utc)
+	for course in semester.courses:
+		if course.deleted_at is None:
+			course.deleted_at = deleted_at
+	db.delete(semester)
+	db.commit()
 
 
 def calculate_target(db: Session, owner_id: int, request: TargetCgpaRequest) -> TargetCgpaResult:
