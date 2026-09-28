@@ -369,3 +369,34 @@ def test_timetable_scheduling_metadata_gaps_and_exceptions():
         ).json()[0]["status"] == "holiday"
 
         assert client.delete(f"/api/v1/timetable/{second['id']}", headers=headers).status_code == 204
+
+
+def test_academic_record_deletions_sync_with_backend():
+    with TestClient(app) as owner, TestClient(app) as other:
+        owner_headers = _register_and_login(owner, "academic-delete-owner")
+        other_headers = _register_and_login(other, "academic-delete-other")
+
+        semester = owner.post(
+            "/api/v1/cgpa/semesters",
+            json={"name": "Semester 1", "semester_number": 1, "academic_year": "2026-27"},
+            headers=owner_headers,
+        ).json()
+        course = owner.post(
+            f"/api/v1/cgpa/semesters/{semester['id']}/courses",
+            json={"name": "Algorithms", "code": "CSE201", "credits": 3, "grade": 8},
+            headers=owner_headers,
+        ).json()
+
+        assert other.delete(f"/api/v1/cgpa/courses/{course['id']}", headers=other_headers).status_code == 404
+        assert owner.delete(f"/api/v1/cgpa/courses/{course['id']}", headers=owner_headers).status_code == 204
+        records = owner.get("/api/v1/cgpa/records", headers=owner_headers).json()
+        assert records["semesters"][0]["courses"] == []
+
+        second_course = owner.post(
+            f"/api/v1/cgpa/semesters/{semester['id']}/courses",
+            json={"name": "Databases", "code": "CSE202", "credits": 3, "grade": 9},
+            headers=owner_headers,
+        ).json()
+        assert owner.delete(f"/api/v1/cgpa/semesters/{semester['id']}", headers=owner_headers).status_code == 204
+        assert owner.get("/api/v1/cgpa/records", headers=owner_headers).json()["semesters"] == []
+        assert owner.delete(f"/api/v1/cgpa/courses/{second_course['id']}", headers=owner_headers).status_code == 404
