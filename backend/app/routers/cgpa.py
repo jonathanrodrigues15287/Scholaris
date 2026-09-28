@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -27,6 +27,8 @@ from app.services.cgpa_service import (
 	calculate_what_if,
 	create_academic_course,
 	create_academic_semester,
+	delete_academic_course,
+	delete_academic_semester,
 	get_academic_records,
 	update_academic_course,
 )
@@ -87,6 +89,26 @@ def edit_academic_course(
 	db: Session = Depends(get_db),
 ):
 	return update_academic_course(db, user.id, course_id, data)
+
+
+@router.delete("/semesters/{semester_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_academic_semester(
+	semester_id: int,
+	user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+	delete_academic_semester(db, user.id, semester_id)
+	return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_academic_course(
+	course_id: int,
+	user: User = Depends(get_current_user),
+	db: Session = Depends(get_db),
+):
+	delete_academic_course(db, user.id, course_id)
+	return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/target", response_model=TargetCgpaResult)
