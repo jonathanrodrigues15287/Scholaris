@@ -308,6 +308,14 @@
     return request(`/cgpa/courses/${courseId}`, { method: 'PATCH', body: JSON.stringify(changes) });
   }
 
+  async function deleteAcademicCourse(courseId) {
+    return request(`/cgpa/courses/${courseId}`, { method: 'DELETE' });
+  }
+
+  async function deleteAcademicSemester(semesterId) {
+    return request(`/cgpa/semesters/${semesterId}`, { method: 'DELETE' });
+  }
+
   async function calculateTargetCgpa(data) {
     return request('/cgpa/target', { method: 'POST', body: JSON.stringify(data) });
   }
@@ -392,6 +400,8 @@
     createAssignment,
     createAcademicCourse,
     createAcademicSemester,
+    deleteAcademicCourse,
+    deleteAcademicSemester,
     createStudySession,
     calculateTargetCgpa,
     createTimetableEntry,
