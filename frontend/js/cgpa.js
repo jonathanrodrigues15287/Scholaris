@@ -138,9 +138,20 @@
     });
 
     // Remove semester
-    card.querySelector('.remove-sem-btn').addEventListener('click', () => {
+    card.querySelector('.remove-sem-btn').addEventListener('click', async () => {
+      clearTimeout(backendSyncTimer);
+      try {
+        if (semester.serverId && ScholarisApi?.isAuthenticated()) {
+          await ScholarisApi.deleteAcademicSemester(semester.serverId);
+        }
+      } catch (error) {
+        if (!error.queued) {
+          Scholaris.utils.toast?.(error.message, 'error');
+          return;
+        }
+        Scholaris.utils.toast?.('Semester removal queued for synchronization.', 'info');
+      }
       card.remove();
-      // Re-render all to update semester numbers
       const state = getState();
       save(state);
       renderAll();
@@ -197,7 +208,19 @@
       return rowValid;
     }
 
-    div.querySelector('.remove-row-btn').addEventListener('click', () => {
+    div.querySelector('.remove-row-btn').addEventListener('click', async () => {
+      clearTimeout(backendSyncTimer);
+      try {
+        if (subject.serverId && ScholarisApi?.isAuthenticated()) {
+          await ScholarisApi.deleteAcademicCourse(subject.serverId);
+        }
+      } catch (error) {
+        if (!error.queued) {
+          Scholaris.utils.toast?.(error.message, 'error');
+          return;
+        }
+        Scholaris.utils.toast?.('Subject removal queued for synchronization.', 'info');
+      }
       div.remove();
       updateStateAndRender();
     });
