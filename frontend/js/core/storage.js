@@ -1,5 +1,6 @@
 // Compatibility storage adapter and initial state hydration.
 (function () {
+  const Scholaris = window.Scholaris = window.Scholaris || { utils: {} };
   const keys = {
     assignments: 'scholaris_assignments',
     attendance: 'scholaris_attendance',
@@ -24,7 +25,7 @@
     try {
       localStorage.setItem(storageKey, JSON.stringify(value));
     } catch (error) {
-      window.ScholarisEvents?.emit('storage:error', { key, error });
+      Scholaris.events?.emit('storage:error', { key, error });
     }
   }
 
@@ -32,10 +33,11 @@
     try { localStorage.removeItem(keys[key] || key); } catch (error) {}
   }
 
-  window.ScholarisStorage = { keys, read, set, remove };
+  Scholaris.utils = Scholaris.utils || {};
+  Scholaris.utils.storage = { keys, read, set, remove };
 
-  const state = window.ScholarisState;
-  const stateApi = window.ScholarisStateApi;
+  const state = Scholaris.state;
+  const stateApi = Scholaris.state;
   if (!state || !stateApi) return;
   stateApi.set('assignments', read('assignments', []));
   stateApi.set('attendance', read('attendance', []));
