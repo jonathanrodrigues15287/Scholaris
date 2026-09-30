@@ -25,7 +25,6 @@
       <i class="ph-fill ph-graduation-cap" aria-hidden="true"></i>
       <span>Scholaris</span>
     </div>
-    
     <nav aria-label="Main Navigation">
       <ul class="nav-links">
         <li class="nav-item">
@@ -59,27 +58,9 @@
           </a>
         </li>
       </ul>
-      <div class="data-actions" aria-label="Data management">
-        <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
-          <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
-        </a>
-        <label class="nav-link" tabindex="0" aria-label="Import data from JSON file">
-          <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
-          <input type="file" id="import-data-file" accept=".json" hidden>
-        </label>
-        <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
-          <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
-        </a>
-      </div>
-      <div class="api-auth" id="api-auth" aria-label="Backend account controls">
-        <span class="api-auth-status" id="api-auth-status">Offline mode</span>
-        <span class="sync-status sync-status-local" id="sync-status" role="status" aria-live="polite">Saved locally</span>
-        <input class="api-auth-input" id="api-auth-username" type="text" placeholder="Username" aria-label="Account username" autocomplete="username">
-        <input class="api-auth-input" id="api-auth-password" type="password" placeholder="Password" aria-label="Account password">
-        <button class="btn btn-secondary api-auth-btn" id="api-login-btn" type="button">Login</button>
-        <button class="btn api-auth-btn" id="api-register-btn" type="button">Register</button>
-        <button class="btn btn-secondary api-auth-btn" id="api-logout-btn" type="button" hidden>Logout</button>
-      </div>
+      <button class="nav-link accounts-nav-btn" id="accounts-btn" type="button" data-target="accounts" title="Accounts" aria-label="Open accounts">
+        <i class="ph ph-user-circle" aria-hidden="true"></i>
+      </button>
     </nav>
   </aside>
 
@@ -104,6 +85,41 @@
 
     <!-- Content Sections -->
     <div class="content-wrapper">
+
+      <!-- ── Accounts ── -->
+      <section id="accounts" class="section">
+        <header class="section-header">
+          <h1 class="section-title">Accounts</h1>
+          <p class="section-subtitle">Connect your Scholaris account to sync your data.</p>
+        </header>
+        <div class="card">
+          <div class="api-auth" id="api-auth" aria-label="Backend account controls">
+            <span class="api-auth-status" id="api-auth-status">Offline mode</span>
+            <span class="sync-status sync-status-local" id="sync-status" role="status" aria-live="polite">Saved locally</span>
+            <input class="api-auth-input" id="api-auth-email" type="email" placeholder="Email" aria-label="Account email" autocomplete="email">
+            <input class="api-auth-input" id="api-auth-username" type="text" placeholder="Username" aria-label="Account username" autocomplete="username">
+            <input class="api-auth-input" id="api-auth-password" type="password" placeholder="Password" aria-label="Account password">
+            <button class="btn btn-secondary api-auth-btn" id="api-login-btn" type="button">Login</button>
+            <button class="btn api-auth-btn" id="api-register-btn" type="button">Register</button>
+            <button class="btn btn-secondary api-auth-btn" id="api-logout-btn" type="button" hidden>Logout</button>
+          </div>
+          <div class="accounts-data-actions" aria-label="Data management">
+            <h2 class="card-title"><i class="ph ph-database" aria-hidden="true"></i> Data management</h2>
+            <div class="data-actions">
+              <a class="nav-link" id="export-data-btn" role="button" tabindex="0" aria-label="Export all data as JSON">
+                <i class="ph ph-download-simple" aria-hidden="true"></i> Export Data
+              </a>
+              <label class="nav-link" tabindex="0" aria-label="Import data from JSON file">
+                <i class="ph ph-upload-simple" aria-hidden="true"></i> Import Data
+                <input type="file" id="import-data-file" accept=".json" hidden>
+              </label>
+              <a class="nav-link text-red" id="clear-data-btn" role="button" tabindex="0" aria-label="Clear all Scholaris data">
+                <i class="ph ph-trash" aria-hidden="true"></i> Clear All Data
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- ── Dashboard ── -->
       <section id="dashboard" class="section active">
