@@ -2,19 +2,112 @@
 (function () {
   const Scholaris = window.Scholaris = window.Scholaris || { utils: {} };
 
-  function calculateGpa(entries) {
-    const totalCredits = entries.reduce((total, entry) => total + Number(entry.credits || 0), 0);
-    const weightedPoints = entries.reduce((total, entry) => total + Number(entry.grade || 0) * Number(entry.credits || 0), 0);
-    return { gpa: totalCredits ? Number((weightedPoints / totalCredits).toFixed(2)) : 0, totalCredits };
+  function validateGrade(grade) {
+    const value = Number(grade);
+    return grade !== '' && Number.isFinite(value) && value >= 0 && value <= 10;
+  }
+
+  function validateCredits(credits) {
+    const value = Number(credits);
+    return credits !== '' && Number.isFinite(value) && value > 0 && value <= 30;
+  }
+
+  function validateSubjectName(name) {
+    return typeof name === 'string' && name.trim().length > 0 && name.trim().length <= 120;
+  }
+
+  function validateSemesterNumber(number) {
+    const value = Number(number);
+    return Number.isInteger(value) && value >= 1 && value <= 20;
+  }
+
+  function validateAcademicRecords(semesters) {
+    const errors = [];
+    const semesterNumbers = new Set();
+    const subjectCodes = new Set();
+
+    semesters.forEach((semester, semesterIndex) => {
+      if (!validateSemesterNumber(semester.semesterNumber)) {
+        errors.push({ field: `semesters[${semesterIndex}].semesterNumber`, message: 'Semester number must be an integer from 1 to 20.' });
+      } else if (semesterNumbers.has(Number(semester.semesterNumber))) {
+        errors.push({ field: `semesters[${semesterIndex}].semesterNumber`, message: 'Semester numbers must be unique.' });
+      } else {
+        semesterNumbers.add(Number(semester.semesterNumber));
+      }
+
+      (semester.subjects || []).forEach((subject, subjectIndex) => {
+        const prefix = `semesters[${semesterIndex}].subjects[${subjectIndex}]`;
+        if (!validateSubjectName(subject.name)) errors.push({ field: `${prefix}.name`, message: 'Subject name is required.' });
+        if (subject.code !== undefined && subject.code !== null) {
+          const code = String(subject.code).trim().toUpperCase();
+          if (!code) errors.push({ field: `${prefix}.code`, message: 'Subject code cannot be empty.' });
+          else if (subjectCodes.has(code)) errors.push({ field: `${prefix}.code`, message: 'Subject codes must be unique.' });
+          else subjectCodes.add(code);
+        }
+      });
+    });
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  function calculateSemester(subjects) {
+    let weighted = 0;
+    let credits = 0;
+
+    for (const subject of subjects) {
+      if (!validateCredits(subject.credits) || !validateGrade(subject.grade)) {
+        return { valid: false, sgpa: 0, credits: 0 };
+      }
+      const credit = Number(subject.credits);
+      const grade = Number(subject.grade);
+      weighted += credit * grade;
+      credits += credit;
+    }
+
+    return {
+      valid: credits > 0,
+      sgpa: credits > 0 ? weighted / credits : 0,
+      credits
+    };
+  }
+
+  function calculateCGPA(semesters) {
+    let weighted = 0;
+    let credits = 0;
+    const recordValidation = validateAcademicRecords(semesters);
+    let valid = semesters.length > 0 && recordValidation.valid;
+    const perSemester = semesters.map(semester => {
+      const result = calculateSemester(semester.subjects || semester.entries || []);
+      if (!result.valid) valid = false;
+      weighted += result.sgpa * result.credits;
+      credits += result.credits;
+      return {
+        semester: semester.name || semester.semester || '',
+        ...result,
+        gpa: Number(result.sgpa.toFixed(2)),
+        totalCredits: result.credits
+      };
+    });
+    const cgpa = valid && credits > 0 ? weighted / credits : 0;
+    return {
+      valid: valid && credits > 0,
+      cgpa,
+      gpa: Number(cgpa.toFixed(2)),
+      credits,
+      totalCredits: credits,
+      perSemester,
+      errors: recordValidation.errors
+    };
   }
 
   function calculateCgpa(semesters) {
-    const perSemester = semesters.map(semester => ({
-      semester: semester.name || semester.semester || '',
-      ...calculateGpa(semester.subjects || semester.entries || [])
-    }));
-    const allEntries = semesters.flatMap(semester => semester.subjects || semester.entries || []);
-    return { ...calculateGpa(allEntries), perSemester };
+    return calculateCGPA(semesters);
+  }
+
+  function calculateGpa(entries) {
+    const weightedPoints = entries.reduce((total, entry) => total + Number(entry.grade || 0) * Number(entry.credits || 0), 0);
+    const totalCredits = entries.reduce((total, entry) => total + Number(entry.credits || 0), 0);
+    return { gpa: totalCredits ? Number((weightedPoints / totalCredits).toFixed(2)) : 0, totalCredits };
   }
 
   function attendancePercentage(present, total) {
@@ -80,8 +173,15 @@
     apiError,
     assignmentPriority,
     attendancePercentage,
+    calculateCGPA,
+    calculateSemester,
     calculateCgpa,
     calculateGpa,
+    validateAcademicRecords,
+    validateCredits,
+    validateGrade,
+    validateSemesterNumber,
+    validateSubjectName,
     dateToIso,
     daysUntil,
     formatTimerSeconds,
