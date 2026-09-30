@@ -1,5 +1,6 @@
 // Small event bus for communication between feature modules.
 (function () {
+  const Scholaris = window.Scholaris = window.Scholaris || { utils: {} };
   const listeners = new Map();
 
   function on(name, handler) {
@@ -19,5 +20,5 @@
     window.dispatchEvent(new CustomEvent(`scholaris:${name}`, { detail }));
   }
 
-  window.ScholarisEvents = { on, emit };
+  Scholaris.events = { on, emit };
 })();
