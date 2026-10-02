@@ -1,4 +1,4 @@
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,14 @@ class Settings(BaseSettings):
 	DEBUG: bool = False
 
 	DATABASE_URL: str
+	SMTP_HOST: str | None = None
+	SMTP_PORT: int = 587
+	SMTP_USERNAME: str | None = None
+	SMTP_PASSWORD: SecretStr | None = None
+	SMTP_FROM_ADDRESS: str | None = None
+	SMTP_USE_SSL: bool = False
+	DEADLINE_EMAIL_HOUR_UTC: int = Field(default=8, ge=0, le=23)
+	DEADLINE_EMAIL_MINUTE_UTC: int = Field(default=0, ge=0, le=59)
 
 	JWT_SECRET_KEY: SecretStr
 	JWT_ALGORITHM: str = "HS256"
