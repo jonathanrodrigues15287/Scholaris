@@ -53,3 +53,21 @@ def test_assignment_delete_removes_it_from_active_list(api_client, auth_headers)
     assert deleted.status_code == 204
     page = api_client.get("/api/v1/assignments", headers=auth_headers).json()
     assert all(item["id"] != assignment["id"] for item in page["items"])
+
+
+def test_assignment_create_replays_idempotent_result(api_client, auth_headers):
+    course = _create_course(api_client, auth_headers)
+    headers = {**auth_headers, "X-Idempotency-Key": "assignment-create-operation-1"}
+    payload = {"title": "Retry-safe lab", "course_id": course["id"]}
+
+    first = api_client.post("/api/v1/assignments", json=payload, headers=headers)
+    replay = api_client.post("/api/v1/assignments", json=payload, headers=headers)
+
+    assert first.status_code == replay.status_code == 201
+    assert first.json() == replay.json()
+    assignments = api_client.get("/api/v1/assignments", headers=auth_headers).json()["items"]
+    assert sum(item["title"] == "Retry-safe lab" for item in assignments) == 1
+
+    changed_payload = {**payload, "title": "Changed after retry"}
+    mismatch = api_client.post("/api/v1/assignments", json=changed_payload, headers=headers)
+    assert mismatch.status_code == 409
