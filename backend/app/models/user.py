@@ -17,7 +17,9 @@ class User(Base):
 	is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 	minimum_attendance_threshold: Mapped[float] = mapped_column(Float, default=75.0)
 	weekly_study_goal_minutes: Mapped[int] = mapped_column(default=300)
-	created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+	)
 	updated_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
 	)
