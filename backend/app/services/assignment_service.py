@@ -1,13 +1,17 @@
 from datetime import date, datetime, timedelta, timezone
+import hashlib
+import json
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import nullslast
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError
 from app.models.assignment import Assignment, AssignmentHistory
 from app.models.course import Course
-from app.schemas.assignment import AssignmentCreate, AssignmentUpdate
+from app.models.idempotency import IdempotencyRecord
+from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentUpdate
 from app.utils.helpers import apply_partial_update
 from app.utils.pagination import fetch_page
 from app.utils.validators import require_assignment, require_course
@@ -136,13 +140,63 @@ def list_assignments(
 	return fetch_page(query.order_by(nullslast(ordered)), db, page, page_size)
 
 
-def create_assignment(db: Session, owner_id: int, data: AssignmentCreate) -> Assignment:
+def _idempotency_request_hash(data: AssignmentCreate) -> str:
+	serialized = json.dumps(data.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+	return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _replay_idempotent_assignment(
+	db: Session, owner_id: int, operation_id: str, request_hash: str
+) -> dict | None:
+	record = db.scalar(
+		select(IdempotencyRecord).where(
+			IdempotencyRecord.user_id == owner_id,
+			IdempotencyRecord.operation_id == operation_id,
+		)
+	)
+	if record is None:
+		return None
+	if record.request_hash != request_hash:
+		raise ConflictError("Idempotency key was already used for a different request")
+	return record.response_body
+
+
+def create_assignment(
+	db: Session, owner_id: int, data: AssignmentCreate, operation_id: str | None = None
+) -> Assignment | dict:
+	request_hash = _idempotency_request_hash(data) if operation_id else None
+	if operation_id:
+		replayed = _replay_idempotent_assignment(db, owner_id, operation_id, request_hash)
+		if replayed is not None:
+			return replayed
 	require_course(db, owner_id, data.course_id)
 	values = data.model_dump()
 	values["priority"] = _priority_for(data)
 	assignment = Assignment(**values, user_id=owner_id)
 	_apply_status(assignment, data.status)
 	db.add(assignment)
+	if operation_id:
+		try:
+			db.flush()
+			db.refresh(assignment)
+			_record_history(db, assignment, owner_id, "created")
+			db.flush()
+			response_body = AssignmentRead.model_validate(assignment).model_dump(mode="json")
+			db.add(IdempotencyRecord(
+				user_id=owner_id,
+				operation_id=operation_id,
+				request_hash=request_hash,
+				response_status=201,
+				response_body=response_body,
+			))
+			db.commit()
+			return response_body
+		except IntegrityError:
+			db.rollback()
+			replayed = _replay_idempotent_assignment(db, owner_id, operation_id, request_hash)
+			if replayed is not None:
+				return replayed
+			raise
 	db.commit()
 	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "created")
