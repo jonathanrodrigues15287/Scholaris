@@ -167,10 +167,40 @@ class TestAttendancePrediction:
 # ===========================================================================
 from app.services.cgpa_service import calculate_gpa, calculate_cgpa
 from app.schemas.cgpa import GradeEntry, SemesterResult
+from app.models.assignment import Assignment
+from app.models.study_session import StudySession
+from app.models.user import User
 
 
 def _entry(grade: float, credits: float) -> GradeEntry:
     return GradeEntry(grade=grade, credits=credits)
+
+
+class TestTimestampTimezoneAwareness:
+    def test_core_timestamp_columns_are_timezone_aware(self):
+        assert User.__table__.c.created_at.type.timezone is True
+        assert Assignment.__table__.c.created_at.type.timezone is True
+        assert StudySession.__table__.c.start_time.type.timezone is True
+
+    def test_utc_timestamps_remain_timezone_aware(self):
+        now = datetime.now(timezone.utc)
+        user = User(name="A", username="a", email="a@example.com", hashed_password="x", created_at=now)
+        assignment = Assignment(
+            title="Task",
+            description="Desc",
+            due_date=date.today(),
+            priority="high",
+            status="pending",
+            priority_mode="manual",
+            course_id=1,
+            user_id=1,
+            created_at=now,
+        )
+        session = StudySession(start_time=now, duration=45, user_id=1)
+
+        assert user.created_at.tzinfo is not None
+        assert assignment.created_at.tzinfo is not None
+        assert session.start_time.tzinfo is not None
 
 
 class TestCalculateGpa:
@@ -285,6 +315,8 @@ class TestCalculateCgpa:
 # ===========================================================================
 from app.services.assignment_service import _priority_for
 from app.schemas.assignment import AssignmentCreate
+from app.services.assignment_service import _idempotency_request_hash, create_assignment
+from app.models.idempotency import IdempotencyRecord
 
 
 def _mock_create(priority: str = "medium", priority_mode: str = "manual", due_date: date | None = None) -> AssignmentCreate:
@@ -347,6 +379,66 @@ class TestPriorityFor:
         due = date.today() + timedelta(days=8)
         data = _mock_create(priority_mode="auto", due_date=due)
         assert _priority_for(data) == "low"
+
+
+class TestAssignmentIdempotencyReplay:
+    def test_replays_original_assignment_response(self):
+        data = AssignmentCreate(title="Retry-safe lab", course_id=42)
+        body = {"id": 8, "title": "Retry-safe lab", "course_id": 42}
+        record = SimpleNamespace(
+            request_hash=_idempotency_request_hash(data),
+            response_body=body,
+        )
+        db = SimpleNamespace(scalar=lambda query: record)
+
+        assert create_assignment(db, 7, data, "operation-123") == body
+
+    def test_rejects_reusing_key_with_different_payload(self):
+        original = AssignmentCreate(title="Original", course_id=42)
+        changed = AssignmentCreate(title="Changed", course_id=42)
+        record = SimpleNamespace(
+            request_hash=_idempotency_request_hash(original),
+            response_body={"id": 8},
+        )
+        db = SimpleNamespace(scalar=lambda query: record)
+
+        with pytest.raises(ConflictError, match="different request"):
+            create_assignment(db, 7, changed, "operation-123")
+
+    def test_idempotent_create_commits_one_assignment_and_replays_response(self):
+        from sqlalchemy import create_engine, func, select
+        from sqlalchemy.orm import Session
+
+        from app.core.database import Base
+        from app.models.assignment import Assignment
+        from app.models.course import Course
+        from app.models.user import User
+
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        try:
+            with Session(engine) as db:
+                user = User(
+                    name="Idempotency Test",
+                    username="idempotency-test",
+                    email="idempotency@example.com",
+                    hashed_password="not-used",
+                )
+                db.add(user)
+                db.flush()
+                course = Course(user_id=user.id, name="Biology", code="BIO101", credits=0)
+                db.add(course)
+                db.flush()
+                data = AssignmentCreate(title="Retry-safe lab", course_id=course.id)
+
+                first = create_assignment(db, user.id, data, "sqlite-operation-1")
+                replay = create_assignment(db, user.id, data, "sqlite-operation-1")
+
+                assert replay == first
+                assert db.scalar(select(func.count()).select_from(Assignment)) == 1
+        finally:
+            Base.metadata.drop_all(engine)
+            engine.dispose()
 
 
 # ===========================================================================
@@ -603,7 +695,7 @@ class TestStudySessionDurationCalculations:
 
     def test_goal_progress_minutes_equals_weekly_total(self):
         """goal_progress_minutes should mirror the weekly total."""
-        today = date.today()
+        today = date(2026, 9, 23)  # Wednesday, so both entries are in this week.
         weekly_start = today - timedelta(days=today.weekday())
         minutes_by_date = {
             today: 60,
