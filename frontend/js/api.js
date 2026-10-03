@@ -26,7 +26,26 @@
   }
 
   function readQueue() {
-    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (_) { return []; }
+    try {
+      return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]').map(item => {
+        if (item.operation_id) return item;
+        const operationId = item.id || createId('op');
+        const migrated = Scholaris.utils.business.createMutationEnvelope({
+          operationId,
+          path: item.path || '',
+          method: item.method || 'POST',
+          payload: parsePayload(item.body),
+          createdAt: item.createdAt || item.created_at || new Date().toISOString()
+        });
+        return {
+          ...item,
+          ...migrated,
+          retry_count: item.attempts || item.retry_count || 0,
+          id: operationId,
+          headers: { ...(item.headers || {}), 'X-Idempotency-Key': operationId }
+        };
+      });
+    } catch (_) { return []; }
   }
 
   function writeQueue(queue) {
@@ -58,28 +77,49 @@
     return error instanceof TypeError || error.status === undefined;
   }
 
-  function enqueueOperation(path, options) {
+  function parsePayload(body) {
+    if (body instanceof URLSearchParams) return Object.fromEntries(body.entries());
+    if (typeof body !== 'string') return body ?? null;
+    try { return JSON.parse(body); } catch (_) { return body; }
+  }
+
+  function serializeBody(body) {
+    if (typeof body === 'string') return body;
+    if (body instanceof URLSearchParams) return body.toString();
+    return body == null ? null : JSON.stringify(body);
+  }
+
+  function enqueueOperation(path, options, operation) {
     const queue = readQueue();
-    const operation = {
-      id: createId('op'),
+    const queuedOperation = {
+      ...operation,
+      id: operation.operation_id,
       userId: currentUserId,
       path,
       method: (options.method || 'GET').toUpperCase(),
-      body: typeof options.body === 'string' ? options.body : null,
+      body: serializeBody(options.body),
       headers: { ...(options.headers || {}) },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      attempts: 0,
+      updated_at: new Date().toISOString(),
       state: 'pending'
     };
-    queue.push(operation);
+    queue.push(queuedOperation);
     writeQueue(queue);
-    return operation;
+    return queuedOperation;
   }
 
   async function request(path, options = {}) {
-    const { skipQueue, ...fetchOptions } = options;
+    const { skipQueue, operation: suppliedOperation, ...fetchOptions } = options;
     const headers = { ...(options.headers || {}) };
+    const operation = suppliedOperation || (isMutating(options)
+      ? Scholaris.utils.business.createMutationEnvelope({
+          operationId: createId('op'),
+          path,
+          method: options.method,
+          payload: parsePayload(options.body),
+          createdAt: new Date().toISOString()
+        })
+      : null);
+    if (operation) headers['X-Idempotency-Key'] = operation.operation_id;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
       const csrf = cookie('csrf_token');
@@ -92,8 +132,8 @@
       response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers, credentials: 'include' });
     } catch (error) {
       if (authenticated && isMutating(options) && !skipQueue && isNetworkFailure(error)) {
-        const operation = enqueueOperation(path, { ...options, headers });
-        const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
+        const queuedOperation = enqueueOperation(path, { ...options, headers }, operation);
+        const queuedError = new Error(`Saved offline and queued for synchronization (${queuedOperation.operation_id}).`);
         queuedError.queued = true;
         throw queuedError;
       }
@@ -122,11 +162,11 @@
     let syncError = null;
     try {
       for (const operation of queue) {
-        const current = readQueue().find(item => item.id === operation.id && item.userId === currentUserId);
+        const current = readQueue().find(item => item.operation_id === operation.operation_id && item.userId === currentUserId);
         if (!current || current.state !== 'pending') continue;
-        current.attempts += 1;
-        current.updatedAt = new Date().toISOString();
-        writeQueue(readQueue().map(item => item.id === current.id ? current : item));
+        current.retry_count += 1;
+        current.updated_at = new Date().toISOString();
+        writeQueue(readQueue().map(item => item.operation_id === current.operation_id ? current : item));
         try {
           const opHeaders = { ...current.headers };
           delete opHeaders['X-CSRF-Token'];
@@ -134,13 +174,14 @@
             method: current.method,
             headers: opHeaders,
             body: current.body,
-            skipQueue: true
+            skipQueue: true,
+            operation: current
           });
-          writeQueue(readQueue().filter(item => item.id !== current.id));
+          writeQueue(readQueue().filter(item => item.operation_id !== current.operation_id));
         } catch (error) {
-          if (isNetworkFailure(error) && current.attempts < MAX_RETRIES) continue;
+          if (isNetworkFailure(error) && current.retry_count < MAX_RETRIES) continue;
           const latest = readQueue().map(item => item.id === current.id
-            ? { ...item, state: 'conflict', updatedAt: new Date().toISOString(), error: error.message }
+            ? { ...item, state: 'conflict', updated_at: new Date().toISOString(), error: error.message }
             : item);
           writeQueue(latest);
           syncError = error;
@@ -160,16 +201,17 @@
 
   function resolveSyncConflict(operationId, strategy = 'server-wins') {
     const queue = readQueue();
-    const operation = queue.find(item => item.id === operationId && item.userId === currentUserId);
+    const operation = queue.find(item => (item.operation_id || item.id) === operationId && item.userId === currentUserId);
     if (!operation) return false;
     if (strategy === 'client-wins') {
       operation.state = 'pending';
-      operation.attempts = 0;
-      operation.updatedAt = new Date().toISOString();
+      operation.retry_count = 0;
+      operation.updated_at = new Date().toISOString();
       try {
         const body = JSON.parse(operation.body || '{}');
         delete body.expected_updated_at;
         operation.body = JSON.stringify(body);
+        operation.payload = body;
       } catch (_) {}
     } else {
       queue.splice(queue.indexOf(operation), 1);
@@ -207,12 +249,12 @@
     return data;
   }
 
-  async function register(username, password) {
+  async function register(username, email, password) {
     const data = await request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ username, name: username, password })
+      body: JSON.stringify({ username, email, name: username, password })
     });
-    await login(username, password);
+	await login(email, password);
     return data;
   }
 
@@ -440,6 +482,7 @@
 
   function setAuthStatus(message, authenticated) {
     const status = document.getElementById('api-auth-status');
+    const email = document.getElementById('api-auth-email');
     const username = document.getElementById('api-auth-username');
     const password = document.getElementById('api-auth-password');
     const loginButton = document.getElementById('api-login-btn');
@@ -449,6 +492,7 @@
     const sync = getSyncState();
     const syncLabel = sync.status === 'syncing' ? ' · Syncing…' : sync.pending ? ` · ${sync.pending} pending` : sync.failed ? ' · Conflict needs review' : '';
     status.textContent = `${message}${syncLabel}`;
+    email.hidden = authenticated;
     username.hidden = authenticated;
     password.hidden = authenticated;
     loginButton.hidden = authenticated;
@@ -483,17 +527,24 @@
   }
 
   async function handleAuth(action) {
+    const email = document.getElementById('api-auth-email').value.trim();
     const username = document.getElementById('api-auth-username').value.trim();
     const password = document.getElementById('api-auth-password').value;
-    if (!username || password.length < 12) {
-      Scholaris.utils.toast?.('Enter a username and a password of at least 12 characters with upper/lowercase, a number, and a symbol.', 'error');
+    const identifier = email || username;
+    if (!identifier || password.length < 12) {
+      Scholaris.utils.toast?.('Enter an email or username and a password of at least 12 characters with upper/lowercase, a number, and a symbol.', 'error');
       return;
     }
     setAuthStatus('Connecting...', false);
     try {
-      if (action === 'register') await register(username, password);
-      else await login(username, password);
-      setAuthStatus(`Connected as ${username}`, true);
+      if (action === 'register') {
+        if (!email || !username) {
+          Scholaris.utils.toast?.('Enter an email and username to register.', 'error');
+          return;
+        }
+        await register(username, email, password);
+      } else await login(identifier, password);
+      setAuthStatus(`Connected as ${identifier}`, true);
       Scholaris.utils.toast?.('Backend account connected.');
     } catch (error) {
       setAuthStatus('Offline mode', false);
