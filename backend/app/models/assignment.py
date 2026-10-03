@@ -44,11 +44,14 @@ class Assignment(Base):
 	recurrence_until: Mapped[date | None] = mapped_column(Date, nullable=True)
 	reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 	reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+	deadline_email_sent_for: Mapped[date | None] = mapped_column(Date, nullable=True)
 	attachment_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 	attachment_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 	course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), index=True)
 	user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-	created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+	created_at: Mapped[datetime] = mapped_column(
+		DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+	)
 	updated_at: Mapped[datetime] = mapped_column(
 		DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
 	)
