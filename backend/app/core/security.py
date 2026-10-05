@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import os
+from uuid import uuid4
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -36,13 +37,25 @@ def create_access_token(subject: str) -> str:
 
 
 def create_refresh_token(subject: str) -> str:
-	return _create_token(subject, "refresh", timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+	return _create_token(
+		subject,
+		"refresh",
+		timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+		jti=uuid4().hex,
+	)
 
 
-def _create_token(subject: str, token_type: str, lifetime: timedelta) -> str:
+def hash_refresh_token(token: str) -> str:
+	return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _create_token(subject: str, token_type: str, lifetime: timedelta, jti: str | None = None) -> str:
 	expires_at = datetime.now(timezone.utc) + lifetime
+	payload = {"sub": subject, "type": token_type, "exp": expires_at}
+	if jti:
+		payload["jti"] = jti
 	return jwt.encode(
-		{"sub": subject, "type": token_type, "exp": expires_at},
+		payload,
 		settings.JWT_SECRET_KEY.get_secret_value(),
 		algorithm=settings.JWT_ALGORITHM,
 	)
