@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import nullslast
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, VersionConflictError
 from app.models.assignment import Assignment, AssignmentHistory
 from app.models.course import Course
 from app.models.idempotency import IdempotencyRecord
@@ -208,11 +208,25 @@ def get_assignment(db: Session, owner_id: int, assignment_id: int) -> Assignment
 	return require_assignment(db, owner_id, assignment_id)
 
 
-def update_assignment(db: Session, owner_id: int, assignment_id: int, data: AssignmentUpdate) -> Assignment:
+def update_assignment(
+	db: Session,
+	owner_id: int,
+	assignment_id: int,
+	data: AssignmentUpdate,
+	expected_version: int | None = None,
+) -> Assignment:
 	assignment = require_assignment(db, owner_id, assignment_id)
+	if expected_version is not None:
+		db.refresh(assignment, with_for_update=True)
 	values = data.model_dump(exclude_unset=True)
 	expected_updated_at = values.pop("expected_updated_at", None)
-	if expected_updated_at is not None and assignment.updated_at is not None:
+	if expected_version is not None and assignment.version != expected_version:
+		raise VersionConflictError(
+			server=AssignmentRead.model_validate(assignment).model_dump(mode="json"),
+			client=AssignmentUpdate.model_validate(values).model_dump(mode="json"),
+			updated_at=assignment.updated_at.isoformat() if assignment.updated_at else None,
+		)
+	if expected_version is None and expected_updated_at is not None and assignment.updated_at is not None:
 		actual = assignment.updated_at
 		if actual.tzinfo is None:
 			actual = actual.replace(tzinfo=timezone.utc)
@@ -220,7 +234,11 @@ def update_assignment(db: Session, owner_id: int, assignment_id: int, data: Assi
 		if expected.tzinfo is None:
 			expected = expected.replace(tzinfo=timezone.utc)
 		if abs((actual - expected).total_seconds()) > 0.001:
-			raise ConflictError("Assignment changed on another device")
+			raise VersionConflictError(
+				server=AssignmentRead.model_validate(assignment).model_dump(mode="json"),
+				client=AssignmentUpdate.model_validate(values).model_dump(mode="json"),
+				updated_at=assignment.updated_at.isoformat() if assignment.updated_at else None,
+			)
 	previous_status = assignment.status
 	if "course_id" in values:
 		require_course(db, owner_id, values["course_id"])
@@ -230,6 +248,7 @@ def update_assignment(db: Session, owner_id: int, assignment_id: int, data: Assi
 	apply_partial_update(assignment, values)
 	if "priority_mode" in values or "due_date" in values:
 		assignment.priority = _priority_for(data, assignment)
+	assignment.version += 1
 	assignment.updated_at = datetime.now(timezone.utc)
 	db.commit()
 	db.refresh(assignment)
@@ -254,6 +273,7 @@ def mark_assignment_completed(db: Session, owner_id: int, assignment_id: int) ->
 	assignment = require_assignment(db, owner_id, assignment_id)
 	previous = assignment.status
 	_apply_status(assignment, "completed")
+	assignment.version += 1
 	db.commit()
 	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "completed", previous)
@@ -267,6 +287,7 @@ def submit_assignment(db: Session, owner_id: int, assignment_id: int) -> Assignm
 	assignment = require_assignment(db, owner_id, assignment_id)
 	previous = assignment.status
 	_apply_status(assignment, "submitted")
+	assignment.version += 1
 	db.commit()
 	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "submitted", previous)
@@ -277,6 +298,7 @@ def submit_assignment(db: Session, owner_id: int, assignment_id: int) -> Assignm
 def delete_assignment(db: Session, owner_id: int, assignment_id: int) -> None:
 	assignment = require_assignment(db, owner_id, assignment_id)
 	assignment.deleted_at = datetime.now(timezone.utc)
+	assignment.version += 1
 	_record_history(db, assignment, owner_id, "deleted")
 	db.commit()
 
@@ -315,6 +337,7 @@ def mark_reminder_sent(db: Session, owner_id: int, assignment_id: int) -> Assign
 	if assignment.reminder_at is None:
 		raise ConflictError("Assignment has no reminder configured")
 	assignment.reminder_sent_at = datetime.now(timezone.utc)
+	assignment.version += 1
 	db.commit()
 	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "reminder_sent")
@@ -340,4 +363,3 @@ def list_deadline_notifications(db: Session, owner_id: int, days: int = 1) -> li
 			.order_by(Assignment.due_date, Assignment.priority)
 		)
 	)
-
