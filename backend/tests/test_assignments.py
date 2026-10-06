@@ -41,6 +41,39 @@ def test_assignment_lifecycle_and_history(api_client, auth_headers):
     assert {event["event"] for event in history.json()} >= {"created", "updated", "status_changed"}
 
 
+def test_assignment_patch_rejects_stale_version_with_server_and_client_state(api_client, auth_headers):
+    course = _create_course(api_client, auth_headers)
+    created = api_client.post(
+    	"/api/v1/assignments",
+    	json={"title": "Versioned assignment", "course_id": course["id"]},
+    	headers=auth_headers,
+    )
+    assert created.status_code == 201
+    assignment = created.json()
+    assert assignment["version"] == 1
+
+    updated = api_client.patch(
+    	f"/api/v1/assignments/{assignment['id']}",
+    	json={"title": "First device update"},
+    	headers={**auth_headers, "If-Match": "1"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["version"] == 2
+
+    conflict = api_client.patch(
+    	f"/api/v1/assignments/{assignment['id']}",
+    	json={"title": "Stale device update"},
+    	headers={**auth_headers, "If-Match": "1"},
+    )
+    assert conflict.status_code == 409
+    body = conflict.json()
+    assert body["code"] == "VERSION_CONFLICT"
+    assert body["server"]["title"] == "First device update"
+    assert body["server"]["version"] == 2
+    assert body["client"]["title"] == "Stale device update"
+    assert body["updated_at"] == body["server"]["updated_at"]
+
+
 def test_assignment_delete_removes_it_from_active_list(api_client, auth_headers):
     course = _create_course(api_client, auth_headers)
     assignment = api_client.post(
