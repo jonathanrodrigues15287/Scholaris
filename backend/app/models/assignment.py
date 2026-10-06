@@ -32,6 +32,7 @@ class Assignment(Base):
 	)
 
 	id: Mapped[int] = mapped_column(primary_key=True)
+	version: Mapped[int] = mapped_column(default=1, server_default="1", nullable=False)
 	title: Mapped[str] = mapped_column(String(200))
 	description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 	due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
