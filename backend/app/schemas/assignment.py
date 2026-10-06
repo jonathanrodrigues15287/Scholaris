@@ -52,6 +52,7 @@ class AssignmentRead(AssignmentCreate):
 	model_config = ConfigDict(from_attributes=True)
 
 	id: int
+	version: int
 	is_completed: bool
 	is_submitted: bool
 	completed_at: datetime | None = None
@@ -67,4 +68,3 @@ class AssignmentHistoryRead(BaseModel):
 	from_status: str | None
 	to_status: str | None
 	created_at: datetime
-
