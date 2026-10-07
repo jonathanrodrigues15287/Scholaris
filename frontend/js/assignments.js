@@ -2,6 +2,7 @@
 
 (function () {
   const Scholaris = window.Scholaris;
+  const Validate = Scholaris.utils.validation;
   const { escapeHtml } = window.ScholarisUtils;
   const ScholarisStateApi = window.ScholarisStateApi;
   const ScholarisApi = window.ScholarisApi;
@@ -86,6 +87,7 @@
       done: Boolean(task.is_completed),
       submitted: Boolean(task.is_submitted),
       status: task.status || 'pending',
+      version: task.version || 1,
       updatedAt: task.updated_at || null,
       syncState: 'synced'
     };
@@ -327,8 +329,9 @@
         try {
           const updated = await ScholarisApi.updateAssignment(tasks[i].id, {
             status: tasks[i].done ? 'completed' : 'pending',
-            expected_updated_at: tasks[i].updatedAt
+            version: tasks[i].version
           });
+          tasks[i].version = updated?.version || tasks[i].version;
           tasks[i].updatedAt = updated?.updated_at || tasks[i].updatedAt;
           tasks[i].syncState = 'synced';
         } catch (error) {
@@ -373,7 +376,7 @@
         try {
           await ScholarisApi.updateAssignment(tasks[i].id, {
             status: tasks[i].submitted ? 'submitted' : (tasks[i].done ? 'completed' : 'pending'),
-            expected_updated_at: tasks[i].updatedAt
+            version: tasks[i].version
           });
         } catch (error) {
           tasks[i].syncState = error.queued ? 'pending' : 'conflict';
