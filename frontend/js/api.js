@@ -210,6 +210,7 @@
       try {
         const body = JSON.parse(operation.body || '{}');
         delete body.expected_updated_at;
+        delete operation.headers['If-Match'];
         operation.body = JSON.stringify(body);
         operation.payload = body;
       } catch (_) {}
@@ -425,9 +426,12 @@
   }
 
   async function updateAssignment(id, changes) {
+    const { version, ...payload } = changes;
+    const headers = version ? { 'If-Match': String(version) } : {};
     return request(`/assignments/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(changes)
+      headers,
+      body: JSON.stringify(payload)
     });
   }
 
