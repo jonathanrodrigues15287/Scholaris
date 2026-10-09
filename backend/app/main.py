@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI, HTTPException
@@ -7,11 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
 from app.core.middleware import SecurityMiddleware
-from app.jobs.deadline_email_scheduler import start_deadline_scheduler
 import app.models
 from app.routers import assignments, attendance as attendance_router, auth, cgpa, courses, dashboard, study, timetable as timetable_router
 from app.schemas.common import ErrorResponse
@@ -20,22 +19,10 @@ logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-	scheduler = start_deadline_scheduler()
-	try:
-		yield
-	finally:
-		if scheduler and scheduler.running:
-			scheduler.shutdown(wait=False)
-
-
 app = FastAPI(
 	title=settings.APP_NAME,
 	version=settings.APP_VERSION,
 	debug=settings.DEBUG,
-	lifespan=lifespan,
 	docs_url=f"{API_PREFIX}/docs",
 	redoc_url=f"{API_PREFIX}/redoc",
 	openapi_url=f"{API_PREFIX}/openapi.json",
@@ -54,20 +41,12 @@ app = FastAPI(
 
 def handle_domain_error(_: Request, error: DomainError) -> JSONResponse:
 	code = getattr(error, "code", None) or error.__class__.__name__.removesuffix("Error").upper() or "DOMAIN_ERROR"
-	content = {
-		"detail": error.detail,
-		"error": {"code": code, "message": error.detail, "details": []},
-	}
-	if code == "VERSION_CONFLICT":
-		content.update({
-			"code": code,
-			"server": error.server,
-			"client": error.client,
-			"updated_at": error.updated_at,
-		})
 	return JSONResponse(
 		status_code=error.status_code,
-		content=content,
+		content={
+			"detail": error.detail,
+			"error": {"code": code, "message": error.detail, "details": []},
+		},
 		headers={
 			**({"WWW-Authenticate": "Bearer"} if error.status_code == 401 else {}),
 			**({"Retry-After": str(error.retry_after)} if hasattr(error, "retry_after") else {}),
@@ -120,6 +99,17 @@ def handle_integrity_error(_: Request, error: IntegrityError) -> JSONResponse:
 	)
 
 
+def handle_stale_data_error(_: Request, error: StaleDataError) -> JSONResponse:
+	message = "The assignment changed on another device; fetch the latest version and retry"
+	return JSONResponse(
+		status_code=409,
+		content={
+			"detail": message,
+			"error": {"code": "VERSION_CONFLICT", "message": message, "details": []},
+		},
+	)
+
+
 def handle_unexpected_error(_: Request, error: Exception) -> JSONResponse:
 	logger.exception("Unhandled API error", exc_info=error)
 	return JSONResponse(
@@ -138,6 +128,7 @@ app.add_exception_handler(
 app.add_exception_handler(RequestValidationError, handle_validation_error)
 app.add_exception_handler(HTTPException, handle_http_error)
 app.add_exception_handler(IntegrityError, handle_integrity_error)
+app.add_exception_handler(StaleDataError, handle_stale_data_error)
 app.add_exception_handler(Exception, handle_unexpected_error)
 app.add_middleware(SecurityMiddleware)
 app.add_middleware(
