@@ -26,26 +26,7 @@
   }
 
   function readQueue() {
-    try {
-      return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]').map(item => {
-        if (item.operation_id) return item;
-        const operationId = item.id || createId('op');
-        const migrated = Scholaris.utils.business.createMutationEnvelope({
-          operationId,
-          path: item.path || '',
-          method: item.method || 'POST',
-          payload: parsePayload(item.body),
-          createdAt: item.createdAt || item.created_at || new Date().toISOString()
-        });
-        return {
-          ...item,
-          ...migrated,
-          retry_count: item.attempts || item.retry_count || 0,
-          id: operationId,
-          headers: { ...(item.headers || {}), 'X-Idempotency-Key': operationId }
-        };
-      });
-    } catch (_) { return []; }
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (_) { return []; }
   }
 
   function writeQueue(queue) {
@@ -77,49 +58,30 @@
     return error instanceof TypeError || error.status === undefined;
   }
 
-  function parsePayload(body) {
-    if (body instanceof URLSearchParams) return Object.fromEntries(body.entries());
-    if (typeof body !== 'string') return body ?? null;
-    try { return JSON.parse(body); } catch (_) { return body; }
-  }
-
-  function serializeBody(body) {
-    if (typeof body === 'string') return body;
-    if (body instanceof URLSearchParams) return body.toString();
-    return body == null ? null : JSON.stringify(body);
-  }
-
-  function enqueueOperation(path, options, operation) {
+  function enqueueOperation(path, options, { state = 'pending', error = null } = {}) {
     const queue = readQueue();
-    const queuedOperation = {
-      ...operation,
-      id: operation.operation_id,
+    const idempotencyKey = options.headers?.['X-Idempotency-Key'];
+    const operation = {
+      id: idempotencyKey || createId('op'),
       userId: currentUserId,
       path,
       method: (options.method || 'GET').toUpperCase(),
-      body: serializeBody(options.body),
+      body: typeof options.body === 'string' ? options.body : null,
       headers: { ...(options.headers || {}) },
-      updated_at: new Date().toISOString(),
-      state: 'pending'
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      attempts: 0,
+      state,
+      ...(error ? { error } : {})
     };
-    queue.push(queuedOperation);
+    queue.push(operation);
     writeQueue(queue);
-    return queuedOperation;
+    return operation;
   }
 
   async function request(path, options = {}) {
-    const { skipQueue, operation: suppliedOperation, ...fetchOptions } = options;
+    const { skipQueue, ...fetchOptions } = options;
     const headers = { ...(options.headers || {}) };
-    const operation = suppliedOperation || (isMutating(options)
-      ? Scholaris.utils.business.createMutationEnvelope({
-          operationId: createId('op'),
-          path,
-          method: options.method,
-          payload: parsePayload(options.body),
-          createdAt: new Date().toISOString()
-        })
-      : null);
-    if (operation) headers['X-Idempotency-Key'] = operation.operation_id;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
       const csrf = cookie('csrf_token');
@@ -132,8 +94,8 @@
       response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers, credentials: 'include' });
     } catch (error) {
       if (authenticated && isMutating(options) && !skipQueue && isNetworkFailure(error)) {
-        const queuedOperation = enqueueOperation(path, { ...options, headers }, operation);
-        const queuedError = new Error(`Saved offline and queued for synchronization (${queuedOperation.operation_id}).`);
+        const operation = enqueueOperation(path, { ...options, headers });
+        const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
         queuedError.queued = true;
         throw queuedError;
       }
@@ -146,7 +108,21 @@
       } catch (_) {
         // Keep the HTTP status when the server did not return JSON.
       }
-      throw Scholaris.utils.business.apiError(response, payload);
+      const error = Scholaris.utils.business.apiError(response, payload);
+      if (
+        error.code === 'VERSION_CONFLICT'
+        && options.method?.toUpperCase() === 'PATCH'
+        && /^\/assignments\/\d+$/.test(path)
+        && authenticated
+        && !skipQueue
+      ) {
+        const operation = enqueueOperation(path, { ...options, headers }, {
+          state: 'conflict',
+          error: error.message
+        });
+        error.operationId = operation.id;
+      }
+      throw error;
     }
     if (response.status === 204) return null;
     return response.json();
@@ -162,11 +138,11 @@
     let syncError = null;
     try {
       for (const operation of queue) {
-        const current = readQueue().find(item => item.operation_id === operation.operation_id && item.userId === currentUserId);
+        const current = readQueue().find(item => item.id === operation.id && item.userId === currentUserId);
         if (!current || current.state !== 'pending') continue;
-        current.retry_count += 1;
-        current.updated_at = new Date().toISOString();
-        writeQueue(readQueue().map(item => item.operation_id === current.operation_id ? current : item));
+        current.attempts += 1;
+        current.updatedAt = new Date().toISOString();
+        writeQueue(readQueue().map(item => item.id === current.id ? current : item));
         try {
           const opHeaders = { ...current.headers };
           delete opHeaders['X-CSRF-Token'];
@@ -174,14 +150,13 @@
             method: current.method,
             headers: opHeaders,
             body: current.body,
-            skipQueue: true,
-            operation: current
+            skipQueue: true
           });
-          writeQueue(readQueue().filter(item => item.operation_id !== current.operation_id));
+          writeQueue(readQueue().filter(item => item.id !== current.id));
         } catch (error) {
-          if (isNetworkFailure(error) && current.retry_count < MAX_RETRIES) continue;
+          if (isNetworkFailure(error) && current.attempts < MAX_RETRIES) continue;
           const latest = readQueue().map(item => item.id === current.id
-            ? { ...item, state: 'conflict', updated_at: new Date().toISOString(), error: error.message }
+            ? { ...item, state: 'conflict', updatedAt: new Date().toISOString(), error: error.message }
             : item);
           writeQueue(latest);
           syncError = error;
@@ -201,18 +176,16 @@
 
   function resolveSyncConflict(operationId, strategy = 'server-wins') {
     const queue = readQueue();
-    const operation = queue.find(item => (item.operation_id || item.id) === operationId && item.userId === currentUserId);
+    const operation = queue.find(item => item.id === operationId && item.userId === currentUserId);
     if (!operation) return false;
     if (strategy === 'client-wins') {
       operation.state = 'pending';
-      operation.retry_count = 0;
-      operation.updated_at = new Date().toISOString();
+      operation.attempts = 0;
+      operation.updatedAt = new Date().toISOString();
       try {
         const body = JSON.parse(operation.body || '{}');
         delete body.expected_updated_at;
-        delete operation.headers['If-Match'];
         operation.body = JSON.stringify(body);
-        operation.payload = body;
       } catch (_) {}
     } else {
       queue.splice(queue.indexOf(operation), 1);
@@ -220,6 +193,67 @@
     writeQueue(queue);
     if (strategy === 'client-wins') flushSyncQueue();
     return true;
+  }
+
+  function getSyncConflicts() {
+    return readQueue().filter(operation =>
+      operation.userId === currentUserId
+      && operation.state === 'conflict'
+      && operation.method === 'PATCH'
+      && /^\/assignments\/\d+$/.test(operation.path)
+    );
+  }
+
+  async function getAssignment(id) {
+    return request(`/assignments/${id}`);
+  }
+
+  async function resolveAssignmentConflict(operationId, strategy, localTask, expectedVersion) {
+    const operation = readQueue().find(item =>
+      item.id === operationId
+      && item.userId === currentUserId
+      && item.state === 'conflict'
+    );
+    if (!operation) throw new Error('Assignment conflict is no longer available.');
+
+    const assignmentId = Number(operation.path.match(/^\/assignments\/(\d+)$/)?.[1]);
+    if (!Number.isInteger(assignmentId)) throw new Error('Assignment conflict has an invalid path.');
+    const serverAssignment = await getAssignment(assignmentId);
+    if (strategy === 'server-wins') {
+      writeQueue(readQueue().filter(item => item.id !== operationId));
+      return serverAssignment;
+    }
+
+    if (!['client-wins', 'merge'].includes(strategy)) {
+      throw new Error('Unknown assignment conflict resolution strategy.');
+    }
+    if (expectedVersion !== undefined && serverAssignment.version !== expectedVersion) {
+      throw new Error('Assignment changed again. Review the latest server version before resolving.');
+    }
+    const queuedChanges = JSON.parse(operation.body || '{}');
+    const changes = strategy === 'merge'
+      ? queuedChanges
+      : {
+          title: localTask?.title ?? serverAssignment.title,
+          due_date: localTask?.due !== undefined ? (localTask.due || null) : serverAssignment.due_date,
+          priority: localTask?.priority || serverAssignment.priority,
+          priority_mode: localTask?.priorityMode || serverAssignment.priority_mode,
+          status: queuedChanges.status || (localTask?.submitted
+            ? 'submitted'
+            : localTask?.done
+              ? 'completed'
+              : localTask?.status === 'in_progress'
+                ? 'in_progress'
+                : (localTask ? 'pending' : (serverAssignment.status || 'pending')))
+        };
+    const updated = await request(operation.path, {
+      method: 'PATCH',
+      headers: operation.headers || {},
+      body: JSON.stringify({ ...changes, version: serverAssignment.version }),
+      skipQueue: true
+    });
+    writeQueue(readQueue().filter(item => item.id !== operationId));
+    return updated;
   }
 
   function saveSession(data) {
@@ -412,9 +446,11 @@
   }
 
   async function createAssignment(task) {
+    const idempotencyKey = task.operationId || (task.operationId = createId('op'));
     const course = await getOrCreateDefaultCourse();
     return request('/assignments', {
       method: 'POST',
+      headers: { 'X-Idempotency-Key': idempotencyKey },
       body: JSON.stringify({
         title: task.title,
         due_date: task.due || null,
@@ -426,12 +462,9 @@
   }
 
   async function updateAssignment(id, changes) {
-    const { version, ...payload } = changes;
-    const headers = version ? { 'If-Match': String(version) } : {};
     return request(`/assignments/${id}`, {
       method: 'PATCH',
-      headers,
-      body: JSON.stringify(payload)
+      body: JSON.stringify(changes)
     });
   }
 
@@ -470,6 +503,9 @@
     getTimetableGaps,
     isAuthenticated,
     getSyncState,
+    getSyncConflicts,
+    getAssignment,
+    resolveAssignmentConflict,
     flushSyncQueue,
     resolveSyncConflict,
     login,
