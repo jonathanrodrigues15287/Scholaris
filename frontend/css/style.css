@@ -1,4 +1,4 @@
-/* ============================================================
+\n/* ============================================================
    style.css — Global base, design tokens, layout, typography
    Imports all other partials.
    ============================================================ */
@@ -164,6 +164,39 @@ body {
   color: white;
   transform: translateX(4px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.sidebar > nav {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.accounts-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.accounts-nav-btn:hover,
+.accounts-nav-btn.active {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.accounts-nav-btn i {
+  font-size: 2em;
 }
 
 /* ── Mobile Sidebar Overlay ── */
@@ -530,6 +563,27 @@ body.sidebar-open .sidebar-overlay {
   font-size: 1.75rem;
   font-weight: 700;
   margin-bottom: 8px;
+}
+
+.accounts-data-actions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.accounts-data-actions .data-actions {
+  position: static;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.accounts-data-actions .data-actions .nav-link {
+  padding: 8px 10px;
+  white-space: nowrap;
 }
 
 .section-subtitle {
@@ -1122,3 +1176,4 @@ select.form-control {
 
 .field-char-count.near-limit { color: #f59e0b; }
 .field-char-count.at-limit   { color: #ef4444; }
+\n\n
