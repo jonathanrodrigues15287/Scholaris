@@ -2,8 +2,9 @@ import base64
 import hashlib
 import hmac
 import os
-from uuid import uuid4
 from datetime import datetime, timedelta, timezone
+from typing import Any
+from uuid import uuid4
 
 import jwt
 
@@ -36,23 +37,31 @@ def create_access_token(subject: str) -> str:
 	return _create_token(subject, "access", timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(
+	subject: str,
+	jti: str | None = None,
+	expires_at: datetime | None = None,
+) -> str:
 	return _create_token(
 		subject,
 		"refresh",
 		timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-		jti=uuid4().hex,
+		jti=jti or uuid4().hex,
+		expires_at=expires_at,
 	)
 
 
-def hash_refresh_token(token: str) -> str:
-	return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _create_token(subject: str, token_type: str, lifetime: timedelta, jti: str | None = None) -> str:
-	expires_at = datetime.now(timezone.utc) + lifetime
-	payload = {"sub": subject, "type": token_type, "exp": expires_at}
-	if jti:
+def _create_token(
+	subject: str,
+	token_type: str,
+	lifetime: timedelta,
+	*,
+	jti: str | None = None,
+	expires_at: datetime | None = None,
+) -> str:
+	token_expires_at = expires_at or datetime.now(timezone.utc) + lifetime
+	payload: dict[str, Any] = {"sub": subject, "type": token_type, "exp": token_expires_at}
+	if jti is not None:
 		payload["jti"] = jti
 	return jwt.encode(
 		payload,
@@ -61,7 +70,7 @@ def _create_token(subject: str, token_type: str, lifetime: timedelta, jti: str |
 	)
 
 
-def decode_token(token: str, expected_type: str = "access") -> str:
+def _decode_token(token: str, expected_type: str) -> dict[str, Any]:
 	payload = jwt.decode(
 		token,
 		settings.JWT_SECRET_KEY.get_secret_value(),
@@ -69,10 +78,26 @@ def decode_token(token: str, expected_type: str = "access") -> str:
 	)
 	if payload.get("type") != expected_type:
 		raise ValueError("Invalid token type")
+	return payload
+
+
+def decode_token(token: str, expected_type: str = "access") -> str:
+	payload = _decode_token(token, expected_type)
 	subject = payload.get("sub")
 	if not subject:
 		raise ValueError("Token subject is missing")
 	return str(subject)
+
+
+def decode_refresh_token(token: str) -> tuple[str, str]:
+	payload = _decode_token(token, "refresh")
+	subject = payload.get("sub")
+	jti = payload.get("jti")
+	if not subject:
+		raise ValueError("Token subject is missing")
+	if not isinstance(jti, str) or not jti:
+		raise ValueError("Refresh token ID is missing")
+	return str(subject), jti
 
 
 def decode_access_token(token: str) -> str:
