@@ -39,7 +39,7 @@ class AssignmentUpdate(BaseModel):
 	reminder_at: datetime | None = None
 	attachment_name: str | None = Field(default=None, max_length=255)
 	attachment_url: str | None = Field(default=None, max_length=2048)
-	expected_updated_at: datetime | None = None
+	version: int = Field(ge=1)
 
 	@model_validator(mode="after")
 	def validate_recurrence_dates(self):
