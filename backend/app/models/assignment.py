@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, String, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -32,7 +32,7 @@ class Assignment(Base):
 	)
 
 	id: Mapped[int] = mapped_column(primary_key=True)
-	version: Mapped[int] = mapped_column(default=1, server_default="1", nullable=False)
+	version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 	title: Mapped[str] = mapped_column(String(200))
 	description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
 	due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -64,6 +64,8 @@ class Assignment(Base):
 	user = relationship("User", back_populates="assignments")
 	history = relationship("AssignmentHistory", back_populates="assignment", cascade="all, delete-orphan")
 	study_sessions = relationship("StudySession", back_populates="assignment")
+
+	__mapper_args__ = {"version_id_col": version}
 
 
 class AssignmentHistory(Base):
