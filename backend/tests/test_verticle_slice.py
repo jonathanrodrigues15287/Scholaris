@@ -60,7 +60,7 @@ def test_user_login_course_assignment_fetch():
                 "priority": "high",
                 "course_id": course["id"],
             },
-            headers=headers,
+            headers={**headers, "X-Idempotency-Key": f"create-assignment-{uuid4().hex}"},
         )
         assert assignment_response.status_code == 201
 
@@ -70,25 +70,25 @@ def test_user_login_course_assignment_fetch():
         assert fetch_response.json()["items"][0]["course_id"] == course["id"]
 
 
-def test_user_can_register_and_login_with_username():
-    username = f"student_{uuid4().hex[:12]}"
+def test_user_can_register_and_login_with_email():
+    email = f"student-{uuid4().hex[:12]}@example.com"
     password = "Correct-horse-battery-1!"
 
     with TestClient(app) as client:
         register_response = client.post(
             "/api/v1/auth/register",
-            json={"username": username, "name": "Username Student", "password": password},
+            json={"email": email, "name": "Email Student", "password": password},
         )
         assert register_response.status_code == 201
-        assert register_response.json()["username"] == username
+        assert register_response.json()["email"] == email
 
         login_response = client.post(
             "/api/v1/auth/login",
-            data={"username": username, "password": password},
+            data={"username": email, "password": password},
         )
         assert login_response.status_code == 200
-        assert login_response.json()["user"]["username"] == username
-        assert client.get("/api/v1/auth/me").json()["username"] == username
+        assert login_response.json()["user"]["email"] == email
+        assert client.get("/api/v1/auth/me").json()["email"] == email
 
 
 def _register_and_login(client: TestClient, label: str) -> dict[str, str]:
@@ -119,7 +119,7 @@ def test_user_cannot_access_or_mutate_another_users_resources():
         assignment_id = owner.post(
             "/api/v1/assignments",
             json={"title": "Graph proof", "course_id": course_id},
-            headers=owner_headers,
+            headers={**owner_headers, "X-Idempotency-Key": f"owner-assignment-{uuid4().hex}"},
         ).json()["id"]
         attendance_id = owner.post(
             "/api/v1/attendance",
@@ -204,7 +204,7 @@ def test_assignment_state_editing_history_and_recurrence():
                 "recurrence_until": "2026-09-30",
                 "course_id": course["id"],
             },
-            headers=headers,
+            headers={**headers, "X-Idempotency-Key": f"vertical-assignment-{uuid4().hex}"},
         ).json()
         assignment_id = assignment["id"]
         assert assignment["status"] == "pending"
@@ -219,15 +219,17 @@ def test_assignment_state_editing_history_and_recurrence():
                 "priority": "high",
                 "course_id": course["id"],
                 "status": "in_progress",
+                "version": assignment["version"],
             },
             headers=headers,
         )
         assert updated.status_code == 200
         assert updated.json()["status"] == "in_progress"
+        assert updated.json()["version"] == assignment["version"] + 1
 
         completed = client.patch(
             f"/api/v1/assignments/{assignment_id}",
-            json={"status": "completed"},
+            json={"status": "completed", "version": updated.json()["version"]},
             headers=headers,
         )
         assert completed.status_code == 200
@@ -391,7 +393,6 @@ def test_academic_record_deletions_sync_with_backend():
         assert owner.delete(f"/api/v1/cgpa/courses/{course['id']}", headers=owner_headers).status_code == 204
         records = owner.get("/api/v1/cgpa/records", headers=owner_headers).json()
         assert records["semesters"][0]["courses"] == []
-
         second_course = owner.post(
             f"/api/v1/cgpa/semesters/{semester['id']}/courses",
             json={"name": "Databases", "code": "CSE202", "credits": 3, "grade": 9},
