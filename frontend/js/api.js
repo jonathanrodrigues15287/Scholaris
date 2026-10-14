@@ -8,6 +8,7 @@
   const QUEUE_KEY = 'scholaris_sync_queue';
   const SYNC_STATE_KEY = 'scholaris_sync_state';
   const MAX_RETRIES = 5;
+  const RETRYABLE_STATES = new Set(['pending', 'retryable']);
   let authenticated = false;
   let currentUserId = null;
   let syncing = false;
@@ -38,11 +39,24 @@
     const queue = readQueue().filter(operation => !currentUserId || operation.userId === currentUserId);
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem(SYNC_STATE_KEY) || '{}'); } catch (_) {}
+    const pending = queue.filter(operation => RETRYABLE_STATES.has(operation.state)).length;
+    const conflicts = queue.filter(operation => operation.state === 'conflict').length;
+    const permanent = queue.filter(operation => operation.state === 'permanent').length;
     return {
-      pending: queue.filter(operation => operation.state === 'pending').length,
-      failed: queue.filter(operation => operation.state === 'conflict').length,
+      pending,
+      failed: conflicts + permanent,
+      conflicts,
+      permanent,
       lastSyncAt: saved.lastSyncAt || null,
-      status: syncing ? 'syncing' : queue.some(operation => operation.state === 'conflict') ? 'conflict' : queue.length ? 'pending' : 'synced'
+      status: syncing
+        ? 'syncing'
+        : conflicts
+          ? 'conflict'
+          : permanent
+            ? 'permanent'
+            : pending
+              ? 'pending'
+              : 'synced'
     };
   }
 
@@ -56,6 +70,22 @@
 
   function isNetworkFailure(error) {
     return error instanceof TypeError || error.status === undefined;
+  }
+
+  function isRetryableFailure(error) {
+    return isNetworkFailure(error)
+      || error.status === 408
+      || error.status === 425
+      || error.status === 429
+      || error.status >= 500;
+  }
+
+  function classifySyncFailure(error, attempts) {
+    if (error.code === 'VERSION_CONFLICT') return 'conflict';
+    if (isRetryableFailure(error) || error.status === 401) {
+      return attempts < MAX_RETRIES ? 'retryable' : 'permanent';
+    }
+    return 'permanent';
   }
 
   function enqueueOperation(path, options, { state = 'pending', error = null } = {}) {
@@ -72,6 +102,7 @@
       updatedAt: new Date().toISOString(),
       attempts: 0,
       state,
+      operation: options.operation || `${(options.method || 'GET').toUpperCase()} ${path}`,
       ...(error ? { error } : {})
     };
     queue.push(operation);
@@ -97,6 +128,8 @@
         const operation = enqueueOperation(path, { ...options, headers });
         const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
         queuedError.queued = true;
+        queuedError.operationId = operation.id;
+        queuedError.syncState = 'retryable';
         throw queuedError;
       }
       throw error;
@@ -110,17 +143,18 @@
       }
       const error = Scholaris.utils.business.apiError(response, payload);
       if (
-        error.code === 'VERSION_CONFLICT'
-        && options.method?.toUpperCase() === 'PATCH'
-        && /^\/assignments\/\d+$/.test(path)
+        isMutating(options)
         && authenticated
         && !skipQueue
       ) {
+        const state = error.code === 'VERSION_CONFLICT' ? 'conflict' : classifySyncFailure(error, 0);
         const operation = enqueueOperation(path, { ...options, headers }, {
-          state: 'conflict',
+          state,
           error: error.message
         });
         error.operationId = operation.id;
+        error.syncState = state;
+        error.queued = state === 'retryable';
       }
       throw error;
     }
@@ -130,7 +164,9 @@
 
   async function flushSyncQueue() {
     if (!authenticated || syncing || !navigator.onLine) return;
-    const queue = readQueue().filter(operation => operation.state === 'pending' && operation.userId === currentUserId);
+    const queue = readQueue().filter(operation =>
+      RETRYABLE_STATES.has(operation.state) && operation.userId === currentUserId
+    );
     if (!queue.length) return;
     syncing = true;
     Scholaris.events?.emit('sync-started', { pending: queue.length });
@@ -139,9 +175,10 @@
     try {
       for (const operation of queue) {
         const current = readQueue().find(item => item.id === operation.id && item.userId === currentUserId);
-        if (!current || current.state !== 'pending') continue;
+        if (!current || !RETRYABLE_STATES.has(current.state)) continue;
         current.attempts += 1;
         current.updatedAt = new Date().toISOString();
+        current.state = 'syncing';
         writeQueue(readQueue().map(item => item.id === current.id ? current : item));
         try {
           const opHeaders = { ...current.headers };
@@ -154,9 +191,13 @@
           });
           writeQueue(readQueue().filter(item => item.id !== current.id));
         } catch (error) {
-          if (isNetworkFailure(error) && current.attempts < MAX_RETRIES) continue;
           const latest = readQueue().map(item => item.id === current.id
-            ? { ...item, state: 'conflict', updatedAt: new Date().toISOString(), error: error.message }
+            ? {
+                ...item,
+                state: classifySyncFailure(error, current.attempts),
+                updatedAt: new Date().toISOString(),
+                error: error.message
+              }
             : item);
           writeQueue(latest);
           syncError = error;
@@ -202,6 +243,23 @@
       && operation.method === 'PATCH'
       && /^\/assignments\/\d+$/.test(operation.path)
     );
+  }
+
+  function getSyncOperations() {
+    return readQueue().filter(operation => operation.userId === currentUserId);
+  }
+
+  function retrySyncOperation(operationId) {
+    const queue = readQueue();
+    const operation = queue.find(item => item.id === operationId && item.userId === currentUserId);
+    if (!operation || !['retryable', 'permanent'].includes(operation.state)) return false;
+    operation.state = 'pending';
+    operation.attempts = 0;
+    operation.updatedAt = new Date().toISOString();
+    delete operation.error;
+    writeQueue(queue);
+    flushSyncQueue();
+    return true;
   }
 
   async function getAssignment(id) {
@@ -504,6 +562,8 @@
     isAuthenticated,
     getSyncState,
     getSyncConflicts,
+    getSyncOperations,
+    retrySyncOperation,
     getAssignment,
     resolveAssignmentConflict,
     flushSyncQueue,
@@ -530,7 +590,15 @@
     const logoutButton = document.getElementById('api-logout-btn');
     if (!status) return;
     const sync = getSyncState();
-    const syncLabel = sync.status === 'syncing' ? ' · Syncing…' : sync.pending ? ` · ${sync.pending} pending` : sync.failed ? ' · Conflict needs review' : '';
+    const syncLabel = sync.status === 'syncing'
+      ? ' · Syncing…'
+      : sync.pending
+        ? ` · ${sync.pending} pending`
+        : sync.status === 'permanent'
+          ? ' · Action required'
+          : sync.failed
+            ? ' · Conflict needs review'
+            : '';
     status.textContent = `${message}${syncLabel}`;
     email.hidden = authenticated;
     username.hidden = authenticated;
@@ -558,6 +626,9 @@
     } else if (sync.status === 'conflict') {
       state = 'conflict';
       message = 'Sync conflict - Needs attention';
+    } else if (sync.status === 'permanent') {
+      state = 'conflict';
+      message = 'Sync failed - Action required';
     } else if (sync.pending) {
       state = 'local';
       message = 'Saved locally - Waiting for connection';
