@@ -1,13 +1,15 @@
-from datetime import date, datetime, timedelta, timezone
 import hashlib
 import json
+from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql import nullslast
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, VersionConflictError
+from app.core.exceptions import ConflictError, IdempotencyConflictError, VersionConflictError
 from app.models.assignment import Assignment, AssignmentHistory
 from app.models.course import Course
 from app.models.idempotency import IdempotencyRecord
@@ -140,105 +142,108 @@ def list_assignments(
 	return fetch_page(query.order_by(nullslast(ordered)), db, page, page_size)
 
 
-def _idempotency_request_hash(data: AssignmentCreate) -> str:
-	serialized = json.dumps(data.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
-	return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+def _assignment_request_hash(data: AssignmentCreate) -> str:
+	payload = json.dumps(data.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+	return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _replay_idempotent_assignment(
-	db: Session, owner_id: int, operation_id: str, request_hash: str
-) -> dict | None:
-	record = db.scalar(
+def _replay_idempotent_response(
+	record: IdempotencyRecord,
+	request_hash: str,
+) -> tuple[dict[str, Any], int]:
+	if record.request_hash != request_hash:
+		raise IdempotencyConflictError("Idempotency key was already used with a different request")
+	return record.response_body, record.response_status
+
+
+def _is_idempotency_unique_violation(error: IntegrityError) -> bool:
+	original = error.orig
+	constraint_name = getattr(getattr(original, "diag", None), "constraint_name", None)
+	if constraint_name == "uq_idempotency_user_operation":
+		return True
+	message = str(original).lower()
+	return (
+		"unique constraint failed: idempotency_records.user_id, idempotency_records.operation_id"
+		in message
+	)
+
+
+def create_assignment(
+	db: Session,
+	owner_id: int,
+	data: AssignmentCreate,
+	operation_id: str,
+) -> tuple[dict[str, Any], int]:
+	request_hash = _assignment_request_hash(data)
+	existing = db.scalar(
 		select(IdempotencyRecord).where(
 			IdempotencyRecord.user_id == owner_id,
 			IdempotencyRecord.operation_id == operation_id,
 		)
 	)
-	if record is None:
-		return None
-	if record.request_hash != request_hash:
-		raise ConflictError("Idempotency key was already used for a different request")
-	return record.response_body
+	if existing is not None:
+		return _replay_idempotent_response(existing, request_hash)
 
-
-def create_assignment(
-	db: Session, owner_id: int, data: AssignmentCreate, operation_id: str | None = None
-) -> Assignment | dict:
-	request_hash = _idempotency_request_hash(data) if operation_id else None
-	if operation_id:
-		replayed = _replay_idempotent_assignment(db, owner_id, operation_id, request_hash)
-		if replayed is not None:
-			return replayed
 	require_course(db, owner_id, data.course_id)
 	values = data.model_dump()
 	values["priority"] = _priority_for(data)
 	assignment = Assignment(**values, user_id=owner_id)
 	_apply_status(assignment, data.status)
 	db.add(assignment)
-	if operation_id:
-		try:
-			db.flush()
-			db.refresh(assignment)
-			_record_history(db, assignment, owner_id, "created")
-			db.flush()
-			response_body = AssignmentRead.model_validate(assignment).model_dump(mode="json")
-			db.add(IdempotencyRecord(
-				user_id=owner_id,
-				operation_id=operation_id,
-				request_hash=request_hash,
-				response_status=201,
-				response_body=response_body,
-			))
-			db.commit()
-			return response_body
-		except IntegrityError:
-			db.rollback()
-			replayed = _replay_idempotent_assignment(db, owner_id, operation_id, request_hash)
-			if replayed is not None:
-				return replayed
-			raise
-	db.commit()
+	db.flush()
 	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "created")
-	db.commit()
-	return assignment
+	response_body = AssignmentRead.model_validate(assignment).model_dump(mode="json")
+	db.add(
+		IdempotencyRecord(
+			user_id=owner_id,
+			operation_id=operation_id,
+			request_hash=request_hash,
+			response_status=201,
+			response_body=response_body,
+		)
+	)
+	try:
+		db.commit()
+	except IntegrityError as exc:
+		db.rollback()
+		if not _is_idempotency_unique_violation(exc):
+			raise
+		concurrent_record = db.scalar(
+			select(IdempotencyRecord).where(
+				IdempotencyRecord.user_id == owner_id,
+				IdempotencyRecord.operation_id == operation_id,
+			)
+		)
+		if concurrent_record is None:
+			raise
+		return _replay_idempotent_response(concurrent_record, request_hash)
+	return response_body, 201
 
 
 def get_assignment(db: Session, owner_id: int, assignment_id: int) -> Assignment:
 	return require_assignment(db, owner_id, assignment_id)
 
 
-def update_assignment(
-	db: Session,
-	owner_id: int,
-	assignment_id: int,
-	data: AssignmentUpdate,
-	expected_version: int | None = None,
-) -> Assignment:
-	assignment = require_assignment(db, owner_id, assignment_id)
-	if expected_version is not None:
-		db.refresh(assignment, with_for_update=True)
-	values = data.model_dump(exclude_unset=True)
-	expected_updated_at = values.pop("expected_updated_at", None)
-	if expected_version is not None and assignment.version != expected_version:
+def _commit_assignment_transaction(db: Session) -> None:
+	try:
+		db.commit()
+	except StaleDataError as exc:
+		db.rollback()
 		raise VersionConflictError(
-			server=AssignmentRead.model_validate(assignment).model_dump(mode="json"),
-			client=AssignmentUpdate.model_validate(values).model_dump(mode="json"),
-			updated_at=assignment.updated_at.isoformat() if assignment.updated_at else None,
-		)
-	if expected_version is None and expected_updated_at is not None and assignment.updated_at is not None:
-		actual = assignment.updated_at
-		if actual.tzinfo is None:
-			actual = actual.replace(tzinfo=timezone.utc)
-		expected = expected_updated_at
-		if expected.tzinfo is None:
-			expected = expected.replace(tzinfo=timezone.utc)
-		if abs((actual - expected).total_seconds()) > 0.001:
-			raise VersionConflictError(
-				server=AssignmentRead.model_validate(assignment).model_dump(mode="json"),
-				client=AssignmentUpdate.model_validate(values).model_dump(mode="json"),
-				updated_at=assignment.updated_at.isoformat() if assignment.updated_at else None,
-			)
+			"Assignment changed on another device; fetch the latest version and retry"
+		) from exc
+	except SQLAlchemyError:
+		db.rollback()
+		raise
+
+
+def update_assignment(db: Session, owner_id: int, assignment_id: int, data: AssignmentUpdate) -> Assignment:
+	assignment = require_assignment(db, owner_id, assignment_id)
+	values = data.model_dump(exclude_unset=True)
+	if data.version != assignment.version:
+		raise VersionConflictError("Assignment changed on another device; fetch the latest version and retry")
+	values.pop("version")
 	previous_status = assignment.status
 	if "course_id" in values:
 		require_course(db, owner_id, values["course_id"])
@@ -248,24 +253,30 @@ def update_assignment(
 	apply_partial_update(assignment, values)
 	if "priority_mode" in values or "due_date" in values:
 		assignment.priority = _priority_for(data, assignment)
-	assignment.version += 1
 	assignment.updated_at = datetime.now(timezone.utc)
-	db.commit()
-	db.refresh(assignment)
-	if requested_status == "completed" and previous_status != "completed":
-		_create_next_recurrence(db, assignment, owner_id)
-	_record_history(
-		db,
-		assignment,
-		owner_id,
-		"submitted" if requested_status == "submitted" else (
-			"completed" if requested_status == "completed" else (
-				"status_changed" if requested_status and requested_status != previous_status else "updated"
-			)
-		),
-		previous_status if requested_status and requested_status != previous_status else None,
+	event = (
+		"submitted"
+		if requested_status == "submitted"
+		else "completed"
+		if requested_status == "completed"
+		else "status_changed"
+		if requested_status and requested_status != previous_status
+		else "updated"
 	)
-	db.commit()
+	try:
+		if requested_status == "completed" and previous_status != "completed":
+			_create_next_recurrence(db, assignment, owner_id)
+		_record_history(db, assignment, owner_id, event, previous_status if requested_status and requested_status != previous_status else None)
+		_commit_assignment_transaction(db)
+	except StaleDataError as exc:
+		# A flush triggered before commit can also report an optimistic-lock conflict.
+		db.rollback()
+		raise VersionConflictError(
+			"Assignment changed on another device; fetch the latest version and retry"
+		) from exc
+	except SQLAlchemyError:
+		db.rollback()
+		raise
 	return assignment
 
 
@@ -273,13 +284,19 @@ def mark_assignment_completed(db: Session, owner_id: int, assignment_id: int) ->
 	assignment = require_assignment(db, owner_id, assignment_id)
 	previous = assignment.status
 	_apply_status(assignment, "completed")
-	assignment.version += 1
-	db.commit()
-	db.refresh(assignment)
-	_record_history(db, assignment, owner_id, "completed", previous)
-	if previous != "completed":
-		_create_next_recurrence(db, assignment, owner_id)
-	db.commit()
+	try:
+		_record_history(db, assignment, owner_id, "completed", previous)
+		if previous != "completed":
+			_create_next_recurrence(db, assignment, owner_id)
+		_commit_assignment_transaction(db)
+	except StaleDataError as exc:
+		db.rollback()
+		raise VersionConflictError(
+			"Assignment changed on another device; fetch the latest version and retry"
+		) from exc
+	except SQLAlchemyError:
+		db.rollback()
+		raise
 	return assignment
 
 
@@ -287,18 +304,14 @@ def submit_assignment(db: Session, owner_id: int, assignment_id: int) -> Assignm
 	assignment = require_assignment(db, owner_id, assignment_id)
 	previous = assignment.status
 	_apply_status(assignment, "submitted")
-	assignment.version += 1
-	db.commit()
-	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "submitted", previous)
-	db.commit()
+	_commit_assignment_transaction(db)
 	return assignment
 
 
 def delete_assignment(db: Session, owner_id: int, assignment_id: int) -> None:
 	assignment = require_assignment(db, owner_id, assignment_id)
 	assignment.deleted_at = datetime.now(timezone.utc)
-	assignment.version += 1
 	_record_history(db, assignment, owner_id, "deleted")
 	db.commit()
 
@@ -337,16 +350,13 @@ def mark_reminder_sent(db: Session, owner_id: int, assignment_id: int) -> Assign
 	if assignment.reminder_at is None:
 		raise ConflictError("Assignment has no reminder configured")
 	assignment.reminder_sent_at = datetime.now(timezone.utc)
-	assignment.version += 1
-	db.commit()
-	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "reminder_sent")
-	db.commit()
+	_commit_assignment_transaction(db)
 	return assignment
 
 
 def list_deadline_notifications(db: Session, owner_id: int, days: int = 1) -> list[Assignment]:
-	"""Return incomplete assignments due now through the requested horizon."""
+	"Return incomplete assignments due now through the requested horizon."
 	deadline = date.today() + timedelta(days=days)
 	return list(
 		db.scalars(
