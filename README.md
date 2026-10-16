@@ -21,6 +21,8 @@ scholaris/
 ├── .env.example
 ├── .gitignore
 ├── README.md
+├── .github/
+│   └── workflows/
 ├── backend/
 │   ├── alembic/
 │   │   ├── env.py
@@ -37,7 +39,6 @@ scholaris/
 │   │   └── utils/
 │   ├── alembic.ini
 │   ├── requirements.txt
-│   ├── test_scholaris.db
 │   └── tests/
 ├── docs/
 │   ├── api.md
@@ -45,7 +46,8 @@ scholaris/
 │   ├── authentication.md
 │   ├── database.md
 │   ├── decisions/
-│   └── offline-sync.md
+│   ├── offline-sync.md
+│   └── testing.md
 ├── frontend/
 │   ├── css/
 │   ├── js/
@@ -67,11 +69,13 @@ scholaris/
 │   ├── index.html
 │   ├── package-lock.json
 │   └── tests/
-├── browser_auth_test.db
-├── scholaris_local.db
-├── test_scholaris.db
-└── improvements.txt
+└── pytest.ini
 ```
+
+Local secrets, virtual environments, caches, database files, test coverage
+output, build artifacts, and logs are intentionally excluded by
+[`.gitignore`](./.gitignore). The project tree above lists only files and
+directories intended to be part of the repository.
 
 ## Backend contents
 
@@ -112,6 +116,10 @@ The repository includes project documentation and test assets:
 - `docs/` contains API and architecture notes, auth documentation, database docs, offline sync notes, and design decisions
 - `backend/tests/` contains backend test coverage
 - `frontend/tests/` contains browser-side tests
+- `pytest.ini` defines the backend test paths and markers
+
+See the [testing strategy](./docs/testing.md) for the test levels, database
+requirements, CI order, and known coverage limitations.
 
 ## Setup
 
@@ -140,6 +148,33 @@ PYTHONPATH=. uvicorn app.main:app --reload
 ```
 
 The frontend is served as a static app from `frontend/` and is intended to run alongside the FastAPI backend.
+
+## Running tests
+
+Run the fast backend unit tests with:
+
+```powershell
+pytest backend/tests/test_unit.py -m unit -q
+```
+
+Run the frontend business-logic tests with:
+
+```powershell
+node --test frontend/tests/*.test.js
+```
+
+Database-backed and API tests require a disposable PostgreSQL database. Set
+`TEST_DATABASE_URL` before running those suites:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql://localhost:5432/scholaris_test"
+pytest backend/tests -m db -q
+pytest backend/tests -m api -q
+```
+
+The repository does not currently include browser automation tests. See
+[docs/testing.md](./docs/testing.md) for the complete test matrix and setup
+details.
 
 ## Summary
 
