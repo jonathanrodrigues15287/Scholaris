@@ -1,4 +1,5 @@
-"""Add canonical assignment lifecycle and history.
+"""
+Add canonical assignment lifecycle and history.
 
 Revision ID: 0003_assignment_lifecycle
 Revises: 0002_integrity_and_audit_fields

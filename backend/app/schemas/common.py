@@ -7,15 +7,11 @@ from pydantic import BaseModel, Field
 ItemT = TypeVar("ItemT")
 
 
-class ErrorBody(BaseModel):
+class ErrorResponse(BaseModel):
 	code: str
 	message: str
-	details: list[dict[str, object]] = Field(default_factory=list)
-
-
-class ErrorResponse(BaseModel):
-	detail: str
-	error: ErrorBody
+	details: list[dict[str, object]] | None = None
+	request_id: str | None = None
 
 
 class Page(BaseModel, Generic[ItemT]):

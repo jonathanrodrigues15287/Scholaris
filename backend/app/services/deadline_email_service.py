@@ -1,6 +1,8 @@
 import logging
+import random
 import smtplib
 import ssl
+import time
 from datetime import date, timedelta
 from email.message import EmailMessage
 
@@ -13,6 +15,9 @@ from app.models.course import Course
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+_MAX_EMAIL_ATTEMPTS = 3
+_INITIAL_EMAIL_RETRY_DELAY_SECONDS = 5
+_MAX_EMAIL_RETRY_DELAY_SECONDS = 60
 
 
 def _send_email(recipient: str, subject: str, body: str) -> None:
@@ -47,8 +52,31 @@ def _send_email(recipient: str, subject: str, body: str) -> None:
 		server.send_message(message)
 
 
+def _send_email_with_retries(recipient: str, subject: str, body: str) -> None:
+	for attempt in range(1, _MAX_EMAIL_ATTEMPTS + 1):
+		try:
+			_send_email(recipient, subject, body)
+			return
+		except (TimeoutError, OSError, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected) as error:
+			if attempt == _MAX_EMAIL_ATTEMPTS:
+				raise
+			delay = min(
+				_INITIAL_EMAIL_RETRY_DELAY_SECONDS * 2 ** (attempt - 1),
+				_MAX_EMAIL_RETRY_DELAY_SECONDS,
+			)
+			delay *= 0.8 + random.random() * 0.4
+			logger.warning(
+				"Transient email failure for %s; retrying attempt %d/%d in %.1fs",
+				recipient,
+				attempt + 1,
+				_MAX_EMAIL_ATTEMPTS,
+				delay,
+			)
+			time.sleep(delay)
+
+
 def send_deadline_emails(db: Session, today: date | None = None) -> tuple[int, int]:
-	"""Send one daily email per user for incomplete assignments due tomorrow."""
+	"Send one daily email per user for incomplete assignments due tomorrow."
 	due_date = (today or date.today()) + timedelta(days=1)
 	assignments = list(
 		db.scalars(
@@ -85,7 +113,7 @@ def send_deadline_emails(db: Session, today: date | None = None) -> tuple[int, i
 		)
 		lines.extend(("", "Log in to Scholaris to review your assignments."))
 		try:
-			_send_email(
+			_send_email_with_retries(
 				user.email,
 				f"Scholaris: {len(user_assignments)} assignment(s) due tomorrow",
 				"\n".join(lines),

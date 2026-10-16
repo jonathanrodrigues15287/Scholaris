@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+\nconst assert = require('node:assert/strict');
 const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
@@ -52,4 +52,4 @@ test('unsubscribe stops internal event handling without affecting browser dispat
 
   assert.equal(calls, 0);
   assert.equal(browserEvents[0].type, 'scholaris:sync-completed');
-});
+});\n\n

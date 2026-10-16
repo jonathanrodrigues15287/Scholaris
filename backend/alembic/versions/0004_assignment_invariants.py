@@ -1,9 +1,10 @@
-"""Enforce assignment priority and recurrence invariants.
-
+"""
+Enforce assignment priority and recurrence invariants.
 Revision ID: 0004_assignment_invariants
 Revises: 0003_assignment_lifecycle
 Create Date: 2026-09-10
 """
+
 
 from alembic import op
 

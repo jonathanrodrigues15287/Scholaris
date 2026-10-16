@@ -1,9 +1,12 @@
-"""Add attendance history, semester links, and threshold settings.
+"""
+Add attendance history, semester links, and threshold settings.
+
 
 Revision ID: 0005_attendance_analytics
 Revises: 0004_assignment_invariants
 Create Date: 2026-09-10
 """
+
 
 from alembic import op
 import sqlalchemy as sa

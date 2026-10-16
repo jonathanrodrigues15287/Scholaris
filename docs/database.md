@@ -19,6 +19,23 @@ The database stores:
 The frontend does not write directly to PostgreSQL. All durable server-side
 changes go through the FastAPI API and service layer.
 
+## Key relationships and constraints
+
+- A user owns courses, semesters, assignments, study sessions, refresh
+  tokens, and idempotency records. Deleting a user cascades to those records.
+- A course belongs to a user and may belong to a semester. Assignments,
+  attendance records, timetable entries, and study sessions may reference a
+  course; deleting a course cascades to assignments, attendance, and timetable
+  entries, while study-session course references are set to null.
+- An assignment belongs to both a user and a course. Its history is
+  deleted with the assignment, and its `version` is used for optimistic
+  concurrency.
+- Attendance has a unique `(course_id, date)` key. Timetable exceptions have a
+  unique `(timetable_id, exception_date)` key.
+- Assignment status, priority, priority mode, recurrence, and the derived
+  completion/submission flags are protected by database check constraints in
+  addition to Pydantic validation.
+
 ## Sessions and transactions
 
 Request handlers receive a synchronous SQLAlchemy `Session` from `get_db`.
@@ -47,12 +64,16 @@ Database constraints enforce uniqueness and relationship integrity. The API
 maps integrity violations to `409 Conflict`.
 
 Assignment updates use optimistic concurrency. A client supplies the expected
-version through `If-Match`; the service rejects stale writes with a
-`VERSION_CONFLICT` response containing server and client state.
+version in the update request body. The service rejects stale writes with a
+`VERSION_CONFLICT` response. The assignment response includes the incremented
+version; the conflict response does not include server or client state, so the
+client must fetch the assignment again before resolving the conflict.
 
-Assignment creation also persists an idempotency key and request fingerprint.
-Replaying the same operation returns the original result; reusing the key with
-different input is rejected.
+Assignment creation persists an idempotency key, request fingerprint, response
+status, and response body in `idempotency_records`. Replaying the same
+operation returns the original result; reusing the key with different input is
+rejected. These records have no application-level retention job and are
+deleted when their user is deleted.
 
 ## Query instrumentation
 
@@ -64,4 +85,3 @@ In development, dashboard requests use SQLAlchemy engine events to record:
 
 The metrics are request-scoped with a `ContextVar`, so concurrent requests do
 not share counters.
-

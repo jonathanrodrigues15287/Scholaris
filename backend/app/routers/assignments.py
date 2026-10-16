@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -56,11 +56,14 @@ def get_assignments(
 @router.post("", response_model=AssignmentRead, status_code=status.HTTP_201_CREATED)
 def add_assignment(
 	data: AssignmentCreate,
-	idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key", min_length=1, max_length=128),
+	response: Response,
+	idempotency_key: str = Header(alias="X-Idempotency-Key", min_length=1, max_length=128),
 	user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-	return create_assignment(db, user.id, data, idempotency_key)
+	response_body, response_status = create_assignment(db, user.id, data, idempotency_key)
+	response.status_code = response_status
+	return response_body
 
 
 @router.get("/reminders/due", response_model=list[AssignmentRead])
@@ -118,17 +121,10 @@ def get_assignment_item(assignment_id: int, user: User = Depends(get_current_use
 def edit_assignment(
 	assignment_id: int,
 	data: AssignmentUpdate,
-	if_match: str | None = Header(default=None, alias="If-Match"),
 	user: User = Depends(get_current_user),
 	db: Session = Depends(get_db),
 ):
-	expected_version = None
-	if if_match is not None:
-		raw_version = if_match.strip().strip('"')
-		if not raw_version.isdigit() or int(raw_version) < 1:
-			raise HTTPException(status_code=400, detail="If-Match must contain a positive assignment version")
-		expected_version = int(raw_version)
-	return update_assignment(db, user.id, assignment_id, data, expected_version)
+	return update_assignment(db, user.id, assignment_id, data)
 
 
 @router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)

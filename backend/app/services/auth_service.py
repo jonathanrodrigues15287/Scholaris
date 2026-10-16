@@ -15,7 +15,7 @@ def normalise_username(value: str) -> str:
 
 def register_user(db: Session, data: UserCreate) -> User:
 	username = normalise_username(data.username or str(data.email).split("@", 1)[0])
-	email = normalise_email(str(data.email)) if data.email else f"{username}@users.scholaris.app"
+	email = normalise_email(str(data.email))
 	if db.scalar(select(User).where((User.username == username) | (User.email == email))):
 		raise ConflictError("A user with this username or email already exists")
 	user = User(

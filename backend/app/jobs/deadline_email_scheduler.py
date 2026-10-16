@@ -48,7 +48,12 @@ def start_deadline_scheduler() -> BackgroundScheduler | None:
 
 	start_deadline_email_worker()
 	scheduler = build_scheduler(settings.DEADLINE_EMAIL_HOUR_UTC, settings.DEADLINE_EMAIL_MINUTE_UTC)
-	scheduler.start()
+	try:
+		scheduler.start()
+	except Exception:
+		stop_deadline_email_worker()
+		logger.exception("Deadline email scheduler failed to start")
+		raise
 	logger.info(
 		"Deadline email scheduler started; reminders run daily at %02d:%02d UTC",
 		settings.DEADLINE_EMAIL_HOUR_UTC,

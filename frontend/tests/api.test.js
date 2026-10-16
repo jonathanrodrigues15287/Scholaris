@@ -42,7 +42,7 @@ function jsonResponse(status, body) {
 test('normalizes structured API errors', () => {
   const error = loadBusiness().apiError(
     { status: 422 },
-    { error: { code: 'VALIDATION_ERROR', message: 'Invalid assignment', details: [{ field: 'title' }] } }
+    { code: 'VALIDATION_ERROR', message: 'Invalid assignment', details: [{ field: 'title' }] }
   );
   assert.equal(error.message, 'Invalid assignment');
   assert.equal(error.status, 422);
@@ -75,7 +75,7 @@ test('assignment conflict resolution supports merge, keep-mine, and use-server',
       if (firstUpdate) {
         firstUpdate = false;
         return jsonResponse(409, {
-          error: { code: 'VERSION_CONFLICT', message: 'Assignment changed elsewhere', details: [] }
+          code: 'VERSION_CONFLICT', message: 'Assignment changed elsewhere', details: null
         });
       }
       const body = JSON.parse(options.body);
@@ -125,4 +125,38 @@ test('assignment conflict resolution supports merge, keep-mine, and use-server',
   assert.equal(serverVersion.version, 7);
   assert.equal(api.getSyncConflicts().length, 0);
   assert.equal(requests.filter(request => request.path === '/assignments/42' && request.options.method === 'PATCH').length, 5);
+});
+
+test('keeps retryable and permanent queue failures distinguishable', async () => {
+  let mode = 'network';
+  const api = loadApi(async (url, options) => {
+    const path = new URL(url).pathname.replace('/api/v1', '');
+    if (path === '/auth/me') return jsonResponse(401, {});
+    if (path === '/auth/login') return jsonResponse(200, { user: { id: 7 } });
+    if (path === '/assignments/42' && options.method === 'PATCH') {
+      if (mode === 'network') throw new TypeError('offline');
+      return jsonResponse(422, {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid assignment',
+        details: [{ field: 'title' }]
+      });
+    }
+    return jsonResponse(404, {});
+  });
+
+  await new Promise(resolve => setImmediate(resolve));
+  await api.login('student@example.com', 'password');
+  const queued = await api.updateAssignment(42, { title: 'Draft', version: 1 }).catch(value => value);
+  assert.equal(queued.queued, true);
+  assert.equal(queued.syncState, 'retryable');
+  assert.equal(api.getSyncState().pending, 1);
+  const operationId = queued.operationId;
+
+  mode = 'validation';
+  await api.flushSyncQueue();
+  const operations = api.getSyncOperations();
+  assert.equal(operations[0].id, operationId);
+  assert.equal(operations[0].state, 'permanent');
+  assert.equal(api.getSyncState().permanent, 1);
+  assert.equal(api.retrySyncOperation(operationId), true);
 });

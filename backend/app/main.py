@@ -10,7 +10,9 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
+from app.core.logging import current_request_id
 from app.core.middleware import SecurityMiddleware
+from app.jobs.deadline_email_scheduler import deadline_email_lifespan
 import app.models
 from app.routers import assignments, attendance as attendance_router, auth, cgpa, courses, dashboard, study, timetable as timetable_router
 from app.schemas.common import ErrorResponse
@@ -18,6 +20,28 @@ from app.schemas.common import ErrorResponse
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
+
+
+def _error_response(
+	status_code: int,
+	detail: str,
+	code: str,
+	*,
+	details: list[dict[str, object]] | None = None,
+	headers: dict[str, str] | None = None,
+) -> JSONResponse:
+	request_id = current_request_id()
+	return JSONResponse(
+		status_code=status_code,
+		content={
+			"code": code,
+			"message": detail,
+			"details": details,
+			**({"request_id": request_id} if request_id else {}),
+		},
+		headers=headers,
+	)
+
 
 app = FastAPI(
 	title=settings.APP_NAME,
@@ -27,6 +51,7 @@ app = FastAPI(
 	redoc_url=f"{API_PREFIX}/redoc",
 	openapi_url=f"{API_PREFIX}/openapi.json",
 	swagger_ui_oauth2_redirect_url=f"{API_PREFIX}/docs/oauth2-redirect",
+	lifespan=deadline_email_lifespan,
 	responses={
 		400: {"model": ErrorResponse},
 		401: {"model": ErrorResponse},
@@ -41,12 +66,10 @@ app = FastAPI(
 
 def handle_domain_error(_: Request, error: DomainError) -> JSONResponse:
 	code = getattr(error, "code", None) or error.__class__.__name__.removesuffix("Error").upper() or "DOMAIN_ERROR"
-	return JSONResponse(
-		status_code=error.status_code,
-		content={
-			"detail": error.detail,
-			"error": {"code": code, "message": error.detail, "details": []},
-		},
+	return _error_response(
+		error.status_code,
+		error.detail,
+		code,
 		headers={
 			**({"WWW-Authenticate": "Bearer"} if error.status_code == 401 else {}),
 			**({"Retry-After": str(error.retry_after)} if hasattr(error, "retry_after") else {}),
@@ -63,62 +86,32 @@ def handle_validation_error(_: Request, error: RequestValidationError) -> JSONRe
 		}
 		for issue in error.errors()
 	]
-	return JSONResponse(
-		status_code=422,
-		content={
-			"detail": "Request validation failed",
-			"error": {"code": "VALIDATION_ERROR", "message": "Request validation failed", "details": details},
-		},
-	)
+	return _error_response(422, "Request validation failed", "VALIDATION_ERROR", details=details)
 
 
 def handle_http_error(_: Request, error: HTTPException) -> JSONResponse:
 	message = error.detail if isinstance(error.detail, str) else "Request failed"
-	return JSONResponse(
-		status_code=error.status_code,
-		content={
-			"detail": message,
-			"error": {"code": f"HTTP_{error.status_code}", "message": message, "details": []},
-		},
+	return _error_response(
+		error.status_code,
+		message,
+		f"HTTP_{error.status_code}",
 		headers={"WWW-Authenticate": "Bearer"} if error.status_code == 401 else {},
 	)
 
 
 def handle_integrity_error(_: Request, error: IntegrityError) -> JSONResponse:
 	logger.warning("Database integrity constraint rejected request: %s", error.orig)
-	return JSONResponse(
-		status_code=409,
-		content={
-			"detail": "The request conflicts with an existing record or constraint",
-			"error": {
-				"code": "INTEGRITY_CONFLICT",
-				"message": "The request conflicts with an existing record or constraint",
-				"details": [],
-			},
-		},
-	)
+	return _error_response(409, "The request conflicts with an existing record or constraint", "INTEGRITY_CONFLICT")
 
 
 def handle_stale_data_error(_: Request, error: StaleDataError) -> JSONResponse:
 	message = "The assignment changed on another device; fetch the latest version and retry"
-	return JSONResponse(
-		status_code=409,
-		content={
-			"detail": message,
-			"error": {"code": "VERSION_CONFLICT", "message": message, "details": []},
-		},
-	)
+	return _error_response(409, message, "VERSION_CONFLICT")
 
 
 def handle_unexpected_error(_: Request, error: Exception) -> JSONResponse:
 	logger.exception("Unhandled API error", exc_info=error)
-	return JSONResponse(
-		status_code=500,
-		content={
-			"detail": "An unexpected server error occurred",
-			"error": {"code": "INTERNAL_ERROR", "message": "An unexpected server error occurred", "details": []},
-		},
-	)
+	return _error_response(500, "An unexpected server error occurred", "INTERNAL_ERROR")
 
 
 app.add_exception_handler(
@@ -137,6 +130,7 @@ app.add_middleware(
 	allow_credentials="*" not in settings.CORS_ORIGINS,
 	allow_methods=["*"],
 	allow_headers=["*"],
+	expose_headers=["X-Request-ID"],
 )
 for router in (
 	auth.router,

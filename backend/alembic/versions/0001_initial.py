@@ -1,4 +1,5 @@
-"""Create the initial Scholaris schema.
+"""
+Create the initial Scholaris schema.
 
 Revision ID: 0001_initial
 Revises:

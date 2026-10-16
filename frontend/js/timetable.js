@@ -15,7 +15,9 @@
   };
   const Scholaris = window.Scholaris;
   const { createId, escapeHtml } = window.ScholarisUtils;
+  const Validate = Scholaris.utils.validation;
   const ScholarisStateApi = window.ScholarisStateApi;
+  const state = Scholaris.state;
   const ScholarisApi = window.ScholarisApi;
 
   /* DOM refs */
@@ -38,10 +40,14 @@
 
   // Modal elements
   const modalOverlay = document.getElementById('tt-modal-overlay');
+  const modalForm = document.getElementById('tt-modal-form');
+  const modalTitle = document.getElementById('tt-modal-title');
   const modalId = document.getElementById('tt-modal-id');
   const modalSubject = document.getElementById('tt-modal-subject');
+  const modalDay = document.getElementById('tt-modal-day');
   const modalStart = document.getElementById('tt-modal-start');
   const modalEnd = document.getElementById('tt-modal-end');
+  const modalDuration = document.getElementById('tt-modal-duration');
   const modalRoom = document.getElementById('tt-modal-room');
   const modalFaculty = document.getElementById('tt-modal-faculty');
   const modalColorVal = document.getElementById('tt-modal-color-value');
@@ -735,6 +741,7 @@
       modalDay.value = e.day;
       modalStart.value = e.startTime;
       modalEnd.value = e.endTime;
+      modalDuration.value = duration(e);
       modalRoom.value = e.room || '';
       modalFaculty.value = e.faculty || '';
       setColor(e.color || 'blue');
@@ -747,6 +754,7 @@
       modalDay.value = day;
       modalStart.value = start;
       modalEnd.value = end;
+      modalDuration.value = duration({ startTime: start, endTime: end });
       modalRoom.value = '';
       modalFaculty.value = '';
       setColor('blue');
@@ -800,6 +808,21 @@
   }
 
   [modalDay, modalStart, modalEnd].forEach(el => el?.addEventListener('change', checkConflicts));
+  modalStart?.addEventListener('change', () => {
+    const minutes = Number(modalDuration.value);
+    if (Number.isFinite(minutes) && minutes > 0) modalEnd.value = addDuration(modalStart.value, minutes);
+    checkConflicts();
+  });
+  modalDuration?.addEventListener('input', () => {
+    const minutes = Number(modalDuration.value);
+    if (Number.isFinite(minutes) && minutes > 0) modalEnd.value = addDuration(modalStart.value, minutes);
+    checkConflicts();
+  });
+  modalEnd?.addEventListener('change', () => {
+    const minutes = timeToMinutes(modalEnd.value) - timeToMinutes(modalStart.value);
+    if (minutes > 0) modalDuration.value = minutes;
+    checkConflicts();
+  });
   modalSubject.addEventListener('input', () => Validate.clearError(modalSubject));
 
   modalForm?.addEventListener('submit', (e) => {
@@ -830,6 +853,7 @@
       schedule.push(eventData);
     }
 
+    persistScheduleState();
     closeModal();
     renderGrid();
   });
@@ -864,6 +888,8 @@
 
   /* ===== 8. ADD / SAVE / LOAD ===== */
   function addTimeSlot() {
+    output.hidden = false;
+    uploadZone.hidden = true;
     openModal(null, 'Monday', '09:00', '10:00');
   }
 
@@ -957,7 +983,7 @@
           } else {
             schedule = s;
           }
-          activeDays = d || [...DAYS];
+          activeDays = Array.isArray(d) && d.length ? d : [...DAYS];
           uploadZone.hidden = true; renderGrid(); output.hidden = false;
         }
     } catch (_) {}

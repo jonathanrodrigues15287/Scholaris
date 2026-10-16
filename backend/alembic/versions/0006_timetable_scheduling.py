@@ -5,6 +5,7 @@ Revises: 0005_attendance_analytics
 Create Date: 2026-09-10
 """
 
+
 from alembic import op
 import sqlalchemy as sa
 

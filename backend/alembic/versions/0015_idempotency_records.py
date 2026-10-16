@@ -1,71 +1,37 @@
-"""Standardize timestamp columns to UTC-aware datetimes.
+"""Persist idempotent assignment-create responses.
 
-Revision ID: 0014_timezone_aware_timestamps
-Revises: 0013_deadline_email_reminders
-Create Date: 2026-10-01
+Revision ID: 0015_idempotency_records
+Revises: 0014_timezone_aware_timestamps
+Create Date: 2026-10-02
 """
 
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0014_timezone_aware_timestamps"
-down_revision = "0013_deadline_email_reminders"
+revision = "0015_idempotency_records"
+down_revision = "0014_timezone_aware_timestamps"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    if bind.dialect.name != "postgresql":
-        return
-
-    op.alter_column(
-        "users",
-        "created_at",
-        existing_type=sa.DateTime(),
-        type_=sa.DateTime(timezone=True),
-        existing_nullable=False,
-    )
-    op.alter_column(
-        "assignments",
-        "created_at",
-        existing_type=sa.DateTime(),
-        type_=sa.DateTime(timezone=True),
-        existing_nullable=False,
-    )
-    op.alter_column(
-        "study_sessions",
-        "start_time",
-        existing_type=sa.DateTime(),
-        type_=sa.DateTime(timezone=True),
-        existing_nullable=False,
-    )
+	op.create_table(
+		"idempotency_records",
+		sa.Column("id", sa.Integer(), nullable=False),
+		sa.Column("user_id", sa.Integer(), nullable=False),
+		sa.Column("operation_id", sa.String(length=128), nullable=False),
+		sa.Column("request_hash", sa.String(length=64), nullable=False),
+		sa.Column("response_status", sa.Integer(), nullable=False),
+		sa.Column("response_body", sa.JSON(), nullable=False),
+		sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+		sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+		sa.PrimaryKeyConstraint("id"),
+		sa.UniqueConstraint("user_id", "operation_id", name="uq_idempotency_user_operation"),
+	)
+	op.create_index("ix_idempotency_records_user_id", "idempotency_records", ["user_id"])
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    if bind.dialect.name != "postgresql":
-        return
-
-    op.alter_column(
-        "study_sessions",
-        "start_time",
-        existing_type=sa.DateTime(timezone=True),
-        type_=sa.DateTime(),
-        existing_nullable=False,
-    )
-    op.alter_column(
-        "assignments",
-        "created_at",
-        existing_type=sa.DateTime(timezone=True),
-        type_=sa.DateTime(),
-        existing_nullable=False,
-    )
-    op.alter_column(
-        "users",
-        "created_at",
-        existing_type=sa.DateTime(timezone=True),
-        type_=sa.DateTime(),
-        existing_nullable=False,
-    )
+	op.drop_index("ix_idempotency_records_user_id", table_name="idempotency_records")
+	op.drop_table("idempotency_records")

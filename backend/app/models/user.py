@@ -28,3 +28,4 @@ class User(Base):
 	assignments = relationship("Assignment", back_populates="user", cascade="all, delete-orphan")
 	semesters = relationship("Semester", back_populates="user", cascade="all, delete-orphan")
 	study_sessions = relationship("StudySession", back_populates="user", cascade="all, delete-orphan")
+	refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")

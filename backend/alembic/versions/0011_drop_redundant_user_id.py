@@ -12,7 +12,6 @@ Revision ID: 0011_drop_redundant_user_id
 Revises: 0010_attendance_status_expand
 Create Date: 2026-09-11
 """
-
 from alembic import op
 import sqlalchemy as sa
 

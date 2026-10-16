@@ -1,4 +1,4 @@
-/**
+﻿/**
  * validation.js — Shared inline form validation helpers
  *
  * Usage:

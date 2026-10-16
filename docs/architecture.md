@@ -8,14 +8,14 @@ frontend and a FastAPI backend.
 ```text
 Browser
   ├─ HTML/CSS/JavaScript UI
-  ├─ local state and offline mutation queue
+  ├─ local state and user-scoped offline mutation queue
   └─ cookie-authenticated API requests
           │
           ▼
 FastAPI application (/api/v1)
   ├─ request ID and security middleware
   ├─ routers (HTTP boundary)
-  ├─ services (business rules)
+  ├─ services (business rules, idempotency, and assignment concurrency)
   ├─ SQLAlchemy sessions and models
   └─ structured errors and request logging
           │
@@ -38,6 +38,12 @@ FastAPI application (/api/v1)
 The application uses synchronous SQLAlchemy sessions. Each dependency-created
 session is closed after the request. Background jobs create their own session
 instead of reusing request state.
+
+The browser queue is not a backend queue: it is a `localStorage` data structure
+owned by the current frontend. It replays authenticated mutations sequentially
+when the browser is online. The backend provides durable idempotency only for
+assignment creation; other queued mutations are at-least-once attempts and
+must be safe for the user to review or retry.
 
 ## Request lifecycle
 
@@ -75,4 +81,3 @@ Only one API instance should run the in-process scheduler in production.
 Every response carries an `X-Request-ID`. Structured log events include the
 same ID when work occurs during a request. Development dashboard metrics record
 SQL query count, aggregate database time, and total request time.
-

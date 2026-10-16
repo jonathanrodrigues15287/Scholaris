@@ -97,6 +97,7 @@
   const Scholaris = window.Scholaris;
   const { escapeHtml } = window.ScholarisUtils;
   const ScholarisStateApi = window.ScholarisStateApi;
+  const state = Scholaris.state;
   const ScholarisApi = window.ScholarisApi;
   const historyList = document.getElementById('session-history-list');
   const modalOverlay = document.getElementById('session-modal-overlay');

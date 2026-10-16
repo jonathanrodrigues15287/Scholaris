@@ -44,7 +44,9 @@ def test_failed_email_does_not_mark_assignment_as_sent():
 	assignment = _assignment(1, 7, "Lab report", due_date)
 	db = SimpleNamespace(scalars=lambda query: [assignment], commit=lambda: None)
 
-	with patch("app.services.deadline_email_service._send_email", side_effect=OSError("SMTP unavailable")):
+	with patch("app.services.deadline_email_service._send_email", side_effect=OSError("SMTP unavailable")), patch(
+		"app.services.deadline_email_service._INITIAL_EMAIL_RETRY_DELAY_SECONDS", 0
+	), patch("app.services.deadline_email_service.random.random", return_value=0):
 		assert send_deadline_emails(db, today=date(2026, 10, 1)) == (0, 1)
 
 	assert assignment.deadline_email_sent_for is None

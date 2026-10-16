@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+\n<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -369,12 +369,34 @@
             </li>
           </ul>
 
+          <section id="assignment-conflicts" class="assignment-conflicts" aria-labelledby="assignment-conflicts-title" hidden>
+            <h3 id="assignment-conflicts-title">Changes need review</h3>
+            <ul id="assignment-conflicts-list" class="assignment-conflicts-list"></ul>
+          </section>
+
           <div id="submitted-assignments-section" class="mt-2" hidden>
             <h3 class="card-subtitle mb-1 text-secondary">Submitted Assignments</h3>
             <ul class="mock-list" id="submitted-assignments-list">
             </ul>
           </div>
         </article>
+
+        <dialog id="assignment-conflict-dialog" class="card assignment-conflict-dialog" aria-labelledby="assignment-conflict-title">
+          <header class="assignment-conflict-header">
+            <h2 id="assignment-conflict-title">Assignment changed elsewhere</h2>
+            <button type="button" class="icon-btn" data-conflict-close aria-label="Close conflict review">
+              <i class="ph ph-x" aria-hidden="true"></i>
+            </button>
+          </header>
+          <p class="text-secondary">Compare your version with the latest server version. Merge reapplies only your changed fields, keeping other server changes.</p>
+          <div id="assignment-conflict-details" class="assignment-conflict-details"></div>
+          <p id="assignment-conflict-error" class="assignment-conflict-error" role="alert" hidden></p>
+          <div class="assignment-conflict-actions">
+            <button type="button" class="btn btn-secondary" data-conflict-strategy="server-wins">Use Server</button>
+            <button type="button" class="btn btn-secondary" data-conflict-strategy="merge">Merge</button>
+            <button type="button" class="btn" data-conflict-strategy="client-wins">Keep Mine</button>
+          </div>
+        </dialog>
       </section>
 
       <!-- ── Study Planner ── -->
@@ -705,4 +727,4 @@
   </div>
   <script src="js/timetable.js"></script>
 </body>
-</html>
+</html>\n\n

@@ -2,9 +2,11 @@
 
 (function () {
   const Scholaris = window.Scholaris;
+  const Validate = Scholaris.utils.validation;
   const { escapeHtml } = window.ScholarisUtils;
   const ScholarisStateApi = window.ScholarisStateApi;
   const ScholarisApi = window.ScholarisApi;
+  const state = Scholaris.state;
   const list = document.getElementById('attendance-list');
   const dateInput = document.getElementById('att-date');
   const statusSelect = document.getElementById('att-status');
@@ -82,13 +84,12 @@
     }
 
     if (subjects.length === 0) {
-      addOption('N/A', `No subjects found for ${dayStr}`);
+      addOption('Custom', 'Other (Custom)');
+      courseInput.value = 'Custom';
     } else {
       subjects.forEach(subject => addOption(subject, subject));
+      addOption('Custom', 'Other (Custom)');
     }
-    
-    // Add a custom option just in case
-    addOption('Custom', 'Other (Custom)');
     handleCourseChange();
   }
 

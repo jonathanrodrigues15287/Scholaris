@@ -1,4 +1,4 @@
-/* ============================================================
+\n﻿/* ============================================================
    dashboard.css — Dashboard grid, stat cards, attendance tracker,
    study planner timer & session history
    ============================================================ */
@@ -418,3 +418,4 @@
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
+\n\n

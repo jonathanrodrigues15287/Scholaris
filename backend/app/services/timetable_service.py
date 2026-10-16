@@ -222,4 +222,3 @@ def timetable_gaps(
 			if minutes > 0:
 				gaps.append({"day": entry_day, "start_time": previous.end_time, "end_time": current.start_time, "duration_minutes": minutes})
 	return gaps
-

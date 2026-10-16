@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+\nconst assert = require('node:assert/strict');
 const test = require('node:test');
 const { loadBusiness } = require('./test-utils');
 
@@ -35,4 +35,4 @@ test('counts absences that can be taken while remaining at the threshold', () =>
   assert.equal(result.percentage, 84);
   assert.equal(result.safeAbsences, 3);
   assert.equal(result.attendNext, null);
-});
+});\n\n

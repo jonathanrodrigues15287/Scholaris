@@ -143,18 +143,31 @@ The frontend is served as a static app from `frontend/` and is intended to run a
 
 ## Summary
 
-This repository contains the actual implementation of the Scholaris application: backend API logic, frontend interface modules, database migrations, support docs, and tests. The codebase is organized around academic workflow features rather than a generic starter template.
+This repository contains the actual implementation of the Scholaris application:
+backend API logic, frontend interface modules, database migrations, support
+docs, and tests. The codebase is organized around academic workflow features
+rather than a generic starter template. The frontend can queue authenticated
+mutations in browser `localStorage`, but only assignment creation currently
+has a server-side exactly-once replay guarantee.
 
 ### Offline synchronization
 
-The frontend creates a stable operation ID before sending each mutation. It
-sends that ID as `X-Idempotency-Key` and stores failed network mutations in a
-local queue. Retries reuse the same operation ID, preserving the original
-request fingerprint and preventing duplicate assignment creation. Queued
-operations expose their entity, operation, payload, retry count, and conflict
-state to the frontend. Network failures can therefore be retried safely;
-validation and conflict responses remain visible instead of being treated as
-offline failures.
+Authenticated mutating requests that fail because of a network error or an
+HTTP error response may be queued in browser `localStorage`. The queue is
+user-scoped, has no time-based expiry, and is replayed sequentially after that
+user authenticates and the browser is online. Network, timeout, rate-limit,
+server (`5xx`), and authenticated `401` failures are retried up to five replay
+attempts. Validation failures and other non-retryable failures remain visible
+for user action; assignment version conflicts require an explicit resolution.
+
+Assignment creation sends a stable operation ID as `X-Idempotency-Key`. The
+server stores the request fingerprint and original response atomically, so
+retries replay the same result; reusing a key with different input returns
+`409 IDEMPOTENCY_CONFLICT`. Other mutations can be queued, but do not have
+server-side idempotency records. Logging out does not delete pending
+operations; they remain paused until the same user signs in again, or until
+local data is cleared. See [offline-sync.md](./docs/offline-sync.md) for the
+full current coverage and its limitations.
 
 ### HTTP status codes
 
@@ -203,9 +216,14 @@ Open `http://localhost:5500` in your browser.
 - [Architecture documentation](./docs/architecture.md)
 - [API contract](./docs/api.md)
 - [Authentication](./docs/authentication.md)
+- [Database architecture](./docs/database.md)
 - [Offline synchronization](./docs/offline-sync.md)
+- [Testing strategy](./docs/testing.md)
 
 ## Tests
+
+See [docs/testing.md](./docs/testing.md) for the four-level testing strategy,
+pytest markers, database setup, and the current browser E2E coverage gap.
 
 Run the frontend business-logic tests with Node.js 18 or newer:
 

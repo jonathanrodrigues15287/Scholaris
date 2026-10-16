@@ -6,6 +6,23 @@ from fastapi.testclient import TestClient
 def test_protected_api_requires_authentication(api_client):
     response = api_client.get("/api/v1/courses")
     assert response.status_code == 401
+    request_id = response.headers["X-Request-ID"]
+    assert response.json()["request_id"] == request_id
+    assert response.json()["details"] is None
+    assert set(response.json()) == {"code", "message", "request_id", "details"}
+
+
+def test_request_id_header_is_preserved(api_client):
+    request_id = str(uuid4())
+    response = api_client.get("/api/v1/courses", headers={"X-Request-ID": request_id})
+    assert response.headers["X-Request-ID"] == request_id
+    assert response.json()["request_id"] == request_id
+
+
+def test_invalid_request_id_is_replaced(api_client):
+    response = api_client.get("/api/v1/courses", headers={"X-Request-ID": "invalid request id"})
+    assert response.headers["X-Request-ID"] != "invalid request id"
+    assert response.json()["request_id"] == response.headers["X-Request-ID"]
 
 
 def test_user_cannot_read_or_delete_another_users_resources(api_client, auth_headers):

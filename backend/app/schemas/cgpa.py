@@ -21,14 +21,14 @@ class SemesterResult(BaseModel):
 
 
 class SemesterGpaResult(BaseModel):
-	"""GPA result for a single semester, including its semester number."""
+	"GPA result for a single semester, including its semester number."
 	semester: int
 	gpa: float
 	total_credits: float
 
 
 class CgpaResult(BaseModel):
-	"""Full CGPA response with cumulative GPA and per-semester breakdown."""
+	"Full CGPA response with cumulative GPA and per-semester breakdown."
 	gpa: float
 	total_credits: float
 	per_semester: list[SemesterGpaResult]

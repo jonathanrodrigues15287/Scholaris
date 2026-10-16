@@ -68,7 +68,6 @@ def attendance_percentage(present: int, total: int, *, decimals: int = 2) -> flo
 # ---------------------------------------------------------------------------
 # Generic model patching
 # ---------------------------------------------------------------------------
-
 def apply_partial_update(obj: Any, values: dict) -> None:
     """
     Apply a dict of *values* onto *obj* via setattr.

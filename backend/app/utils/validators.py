@@ -75,7 +75,7 @@ def require_assignment(db: Session, owner_id: int, assignment_id: int) -> Assign
 # ---------------------------------------------------------------------------
 
 def require_timetable_entry(db: Session, owner_id: int, entry_id: int) -> Timetable:
-    """Return the Timetable entry owned by *owner_id* or raise NotFoundError."""
+    "Return the Timetable entry owned by *owner_id* or raise NotFoundError."
     entry = db.scalar(
         select(Timetable)
         .join(Course)
@@ -144,4 +144,3 @@ def validate_timetable_times(start_time, end_time) -> None:
     """
     if end_time <= start_time:
         raise ConflictError("End time must be after start time")
-

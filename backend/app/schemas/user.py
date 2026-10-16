@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 
 class UserCreate(BaseModel):
 	username: str | None = Field(default=None, min_length=3, max_length=80, pattern=r"^[A-Za-z0-9_.-]+$")
-	email: EmailStr | None = None
+	email: EmailStr
 	name: str | None = Field(default=None, min_length=1, max_length=120)
 	full_name: str | None = Field(default=None, min_length=1, max_length=120)
 	password: str = Field(min_length=12, max_length=128)
@@ -21,8 +21,6 @@ class UserCreate(BaseModel):
 
 	@model_validator(mode="after")
 	def require_identity(self):
-		if not self.username and not self.email:
-			raise ValueError("username or email is required")
 		if not self.name and not self.full_name and not self.username:
 			raise ValueError("name is required")
 		return self

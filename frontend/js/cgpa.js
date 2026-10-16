@@ -2,6 +2,7 @@
 
 (function () {
   const Scholaris = window.Scholaris;
+  const Validate = Scholaris.utils.validation;
   const { createId, escapeHtml } = window.ScholarisUtils;
   const { calculateCGPA, validateCredits, validateGrade, validateSubjectName } = Scholaris.utils.business;
   const ScholarisStateApi = window.ScholarisStateApi;

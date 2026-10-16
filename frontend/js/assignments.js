@@ -13,6 +13,12 @@
   const dateInput = document.getElementById('assignment-date');
   const priorityInput = document.getElementById('assignment-priority');
   const addBtn = document.getElementById('add-assignment-btn');
+  const conflictSection = document.getElementById('assignment-conflicts');
+  const conflictList = document.getElementById('assignment-conflicts-list');
+  const conflictDialog = document.getElementById('assignment-conflict-dialog');
+  const conflictDetails = document.getElementById('assignment-conflict-details');
+  const conflictError = document.getElementById('assignment-conflict-error');
+  let activeConflict = null;
 
   // Priority Mode Control
   const priorityControl = document.getElementById('priority-control');
@@ -146,8 +152,123 @@
     return `${diff} days`;
   }
 
+  function renderAssignmentConflicts() {
+    if (!conflictSection || !conflictList || !ScholarisApi?.isAuthenticated()) {
+      if (conflictSection) conflictSection.hidden = true;
+      return;
+    }
+    const conflicts = ScholarisApi.getSyncConflicts();
+    conflictSection.hidden = conflicts.length === 0;
+    conflictList.innerHTML = conflicts.map(operation => {
+      const assignmentId = Number(operation.path.match(/^\/assignments\/(\d+)$/)?.[1]);
+      const task = load().find(item => item.id === assignmentId);
+      const title = task?.title || `Assignment ${assignmentId}`;
+      return `<li class="assignment-conflict-item">
+        <span><strong>${escapeHtml(title)}</strong><span class="text-secondary">Your changes conflict with another version.</span></span>
+        <button type="button" class="btn btn-secondary" data-review-conflict="${escapeHtml(operation.id)}">Review</button>
+      </li>`;
+    }).join('');
+  }
+
+  function conflictStatus(task) {
+    if (task.submitted || task.is_submitted || task.status === 'submitted') return 'Submitted';
+    if (task.done || task.is_completed || task.status === 'completed') return 'Completed';
+    return task.status || 'Pending';
+  }
+
+  function formatConflictDate(value) {
+    if (!value) return 'Not set';
+    const date = new Date(`${value}T00:00:00`);
+    return Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function addConflictDetail(label, yourValue, serverValue) {
+    const row = document.createElement('div');
+    row.className = 'assignment-conflict-row';
+    const heading = document.createElement('strong');
+    heading.textContent = label;
+    row.appendChild(heading);
+    for (const [name, value] of [['Your version', yourValue], ['Server version', serverValue]]) {
+      const column = document.createElement('p');
+      const caption = document.createElement('span');
+      caption.textContent = `${name}: `;
+      const content = document.createElement('span');
+      content.textContent = value == null || value === '' ? 'Not set' : String(value);
+      column.append(caption, content);
+      row.appendChild(column);
+    }
+    conflictDetails.appendChild(row);
+  }
+
+  async function reviewAssignmentConflict(operationId) {
+    const operation = ScholarisApi.getSyncConflicts().find(item => item.id === operationId);
+    if (!operation) return;
+    const assignmentId = Number(operation.path.match(/^\/assignments\/(\d+)$/)?.[1]);
+    try {
+      const server = await ScholarisApi.getAssignment(assignmentId);
+      const local = load().find(item => item.id === assignmentId) || null;
+      activeConflict = { operationId, assignmentId, serverVersion: server.version, local };
+      conflictDetails.replaceChildren();
+      addConflictDetail('Version', local?.version ?? 'Unknown', server.version);
+      addConflictDetail('Title', local?.title ?? server.title, server.title);
+      addConflictDetail('Due date', formatConflictDate(local?.due ?? server.due_date), formatConflictDate(server.due_date));
+      addConflictDetail('Priority', local?.priority ?? server.priority, server.priority);
+      addConflictDetail('Status', local ? conflictStatus(local) : conflictStatus(server), conflictStatus(server));
+      conflictError.hidden = true;
+      conflictError.textContent = '';
+      conflictDialog.showModal();
+    } catch (error) {
+      Scholaris.utils.toast?.(`Couldn't load the latest assignment: ${error.message}`, 'error');
+    }
+  }
+
+  async function applyAssignmentConflictResolution(strategy) {
+    if (!activeConflict) return;
+    const buttons = conflictDialog.querySelectorAll('[data-conflict-strategy]');
+    buttons.forEach(button => { button.disabled = true; });
+    conflictError.hidden = true;
+    try {
+      const updated = await ScholarisApi.resolveAssignmentConflict(
+        activeConflict.operationId,
+        strategy,
+        activeConflict.local,
+        activeConflict.serverVersion
+      );
+      const tasks = load();
+      const index = tasks.findIndex(task => task.id === activeConflict.assignmentId);
+      if (index < 0) tasks.push(fromApiAssignment(updated));
+      else tasks[index] = fromApiAssignment(updated);
+      save(tasks);
+      conflictDialog.close();
+      activeConflict = null;
+      render();
+      Scholaris.utils.toast?.(
+        strategy === 'server-wins' ? 'Using the latest server version.' : 'Assignment conflict resolved.',
+        'success'
+      );
+    } catch (error) {
+      conflictError.textContent = error.message;
+      conflictError.hidden = false;
+    } finally {
+      buttons.forEach(button => { button.disabled = false; });
+    }
+  }
+
+  conflictList?.addEventListener('click', event => {
+    const button = event.target.closest('[data-review-conflict]');
+    if (button) reviewAssignmentConflict(button.dataset.reviewConflict);
+  });
+  conflictDialog?.addEventListener('click', event => {
+    const strategyButton = event.target.closest('[data-conflict-strategy]');
+    if (strategyButton) applyAssignmentConflictResolution(strategyButton.dataset.conflictStrategy);
+    if (event.target.closest('[data-conflict-close]')) conflictDialog.close();
+  });
+
   function render() {
     try {
+      renderAssignmentConflicts();
       let tasks = load();
 
       // Dynamically recalculate auto priorities based on current dates/workload
@@ -253,8 +374,9 @@
               ${t.priority ? `<i class="ph-fill ph-flag priority-${t.priority}" title="Priority: ${t.priority}"></i>` : ''}
             </div>
             <div class="task-right">
-              ${t.syncState === 'pending' ? '<span class="badge badge-yellow" title="Waiting for server confirmation">Syncing</span>' : ''}
+              ${['pending', 'retryable', 'syncing'].includes(t.syncState) ? '<span class="badge badge-yellow" title="Waiting for server confirmation">Syncing</span>' : ''}
               ${t.syncState === 'conflict' ? '<span class="badge badge-red" title="This change conflicts with another device">Conflict</span>' : ''}
+              ${t.syncState === 'permanent' ? '<span class="badge badge-red" title="This change needs correction or an explicit retry">Action required</span>' : ''}
               <span class="badge ${getBadgeClass(t.due)}">${getBadgeLabel(t.due)}</span>
               <button class="icon-btn submit-btn" data-action="submit" data-index="${origIdx}" title="${t.submitted ? 'Unmark Submitted' : 'Mark Submitted'}">
                 <i class="ph${t.submitted ? '-fill' : ''} ph-paper-plane-right ${t.submitted ? 'submission-marked' : ''}"></i>
@@ -289,6 +411,7 @@
   Scholaris.utils.render = Scholaris.utils.render || {};
   Scholaris.utils.render.assignments = render;
   Scholaris.events?.on('sync-state-changed', render);
+  Scholaris.events?.on('sync-completed', syncFromBackend);
 
   function updateDashboard(tasks) {
     const deadlineList = document.getElementById('dashboard-deadlines');
@@ -335,8 +458,15 @@
           tasks[i].updatedAt = updated?.updated_at || tasks[i].updatedAt;
           tasks[i].syncState = 'synced';
         } catch (error) {
-          tasks[i].syncState = error.queued ? 'pending' : 'conflict';
-          Scholaris.utils.toast?.(error.queued ? 'Marked complete offline; waiting to sync.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
+          tasks[i].syncState = error.syncState || (error.queued ? 'pending' : 'permanent');
+          Scholaris.utils.toast?.(
+            error.queued
+              ? 'Marked complete offline; waiting to sync.'
+              : error.syncState === 'conflict'
+                ? 'Assignment changed elsewhere; review the conflict.'
+                : `Backend update failed: ${error.message}`,
+            error.queued ? 'info' : 'error'
+          );
         }
       }
       save(tasks);
@@ -374,13 +504,23 @@
       tasks[i].submitted = !tasks[i].submitted;
       if (tasks[i].id && ScholarisApi?.isAuthenticated()) {
         try {
-          await ScholarisApi.updateAssignment(tasks[i].id, {
+          const updated = await ScholarisApi.updateAssignment(tasks[i].id, {
             status: tasks[i].submitted ? 'submitted' : (tasks[i].done ? 'completed' : 'pending'),
             version: tasks[i].version
           });
+          tasks[i].version = updated?.version || tasks[i].version;
+          tasks[i].updatedAt = updated?.updated_at || tasks[i].updatedAt;
+          tasks[i].syncState = 'synced';
         } catch (error) {
-          tasks[i].syncState = error.queued ? 'pending' : 'conflict';
-          Scholaris.utils.toast?.(error.queued ? 'Submission queued until you reconnect.' : `Backend update failed: ${error.message}`, error.queued ? 'info' : 'error');
+          tasks[i].syncState = error.syncState || (error.queued ? 'pending' : 'permanent');
+          Scholaris.utils.toast?.(
+            error.queued
+              ? 'Submission queued until you reconnect.'
+              : error.syncState === 'conflict'
+                ? 'Assignment changed elsewhere; review the conflict.'
+                : `Backend update failed: ${error.message}`,
+            error.queued ? 'info' : 'error'
+          );
         }
       }
       save(tasks);

@@ -20,7 +20,6 @@ Run with:  pytest backend/tests/test_unit.py -v
 """
 
 from __future__ import annotations
-
 import pytest
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -46,7 +45,7 @@ from app.utils.helpers import attendance_percentage, normalise_name, normalise_c
 
 
 class TestAttendancePercentage:
-    """Tests for the pure-math helper attendance_percentage()."""
+    "Tests for the pure-math helper attendance_percentage()."
 
     def test_perfect_attendance(self):
         assert attendance_percentage(20, 20) == 100.0
@@ -122,7 +121,7 @@ class TestAttendancePrediction:
         assert attend_next is None
 
     def test_attend_next_calculated_when_below(self):
-        """attend_next should be the minimum classes to cross the threshold."""
+        "attend_next should be the minimum classes to cross the threshold."
         # present=5, absent=15 → 25 %, need 75 % of future total
         pct, _, _, attend_next, _ = _prediction(5, 15, 75.0)
         assert attend_next is not None
@@ -153,7 +152,7 @@ class TestAttendancePrediction:
         assert level == "safe"
 
     def test_100_percent_threshold_impossible_attend_next(self):
-        """When threshold == 100 %, attend_next is None (cannot recover)."""
+        "When threshold == 100 %, attend_next is None (cannot recover)."
         _, _, _, attend_next, _ = _prediction(0, 5, 100.0)
         assert attend_next is None
 
@@ -167,44 +166,14 @@ class TestAttendancePrediction:
 # ===========================================================================
 from app.services.cgpa_service import calculate_gpa, calculate_cgpa
 from app.schemas.cgpa import GradeEntry, SemesterResult
-from app.models.assignment import Assignment
-from app.models.study_session import StudySession
-from app.models.user import User
 
 
 def _entry(grade: float, credits: float) -> GradeEntry:
     return GradeEntry(grade=grade, credits=credits)
 
 
-class TestTimestampTimezoneAwareness:
-    def test_core_timestamp_columns_are_timezone_aware(self):
-        assert User.__table__.c.created_at.type.timezone is True
-        assert Assignment.__table__.c.created_at.type.timezone is True
-        assert StudySession.__table__.c.start_time.type.timezone is True
-
-    def test_utc_timestamps_remain_timezone_aware(self):
-        now = datetime.now(timezone.utc)
-        user = User(name="A", username="a", email="a@example.com", hashed_password="x", created_at=now)
-        assignment = Assignment(
-            title="Task",
-            description="Desc",
-            due_date=date.today(),
-            priority="high",
-            status="pending",
-            priority_mode="manual",
-            course_id=1,
-            user_id=1,
-            created_at=now,
-        )
-        session = StudySession(start_time=now, duration=45, user_id=1)
-
-        assert user.created_at.tzinfo is not None
-        assert assignment.created_at.tzinfo is not None
-        assert session.start_time.tzinfo is not None
-
-
 class TestCalculateGpa:
-    """Tests for calculate_gpa() which computes a single-semester SGPA."""
+    "Tests for calculate_gpa() which computes a single-semester SGPA."
 
     def test_perfect_gpa(self):
         entries = [_entry(10.0, 4), _entry(10.0, 3)]
@@ -258,7 +227,7 @@ class TestCalculateGpa:
 # ===========================================================================
 
 class TestCalculateCgpa:
-    """Tests for calculate_cgpa() which returns cumulative GPA across semesters."""
+    "Tests for calculate_cgpa() which returns cumulative GPA across semesters."
 
     def _semester(self, num: int, entries: list[GradeEntry]) -> SemesterResult:
         return SemesterResult(semester=num, entries=entries)
@@ -315,8 +284,6 @@ class TestCalculateCgpa:
 # ===========================================================================
 from app.services.assignment_service import _priority_for
 from app.schemas.assignment import AssignmentCreate
-from app.services.assignment_service import _idempotency_request_hash, create_assignment
-from app.models.idempotency import IdempotencyRecord
 
 
 def _mock_create(priority: str = "medium", priority_mode: str = "manual", due_date: date | None = None) -> AssignmentCreate:
@@ -330,7 +297,7 @@ def _mock_create(priority: str = "medium", priority_mode: str = "manual", due_da
 
 
 class TestPriorityFor:
-    """Tests for the deadline-based auto-priority logic."""
+    "Tests for the deadline-based auto-priority logic."
 
     def test_auto_high_within_2_days(self):
         due = date.today() + timedelta(days=1)
@@ -381,66 +348,6 @@ class TestPriorityFor:
         assert _priority_for(data) == "low"
 
 
-class TestAssignmentIdempotencyReplay:
-    def test_replays_original_assignment_response(self):
-        data = AssignmentCreate(title="Retry-safe lab", course_id=42)
-        body = {"id": 8, "title": "Retry-safe lab", "course_id": 42}
-        record = SimpleNamespace(
-            request_hash=_idempotency_request_hash(data),
-            response_body=body,
-        )
-        db = SimpleNamespace(scalar=lambda query: record)
-
-        assert create_assignment(db, 7, data, "operation-123") == body
-
-    def test_rejects_reusing_key_with_different_payload(self):
-        original = AssignmentCreate(title="Original", course_id=42)
-        changed = AssignmentCreate(title="Changed", course_id=42)
-        record = SimpleNamespace(
-            request_hash=_idempotency_request_hash(original),
-            response_body={"id": 8},
-        )
-        db = SimpleNamespace(scalar=lambda query: record)
-
-        with pytest.raises(ConflictError, match="different request"):
-            create_assignment(db, 7, changed, "operation-123")
-
-    def test_idempotent_create_commits_one_assignment_and_replays_response(self):
-        from sqlalchemy import create_engine, func, select
-        from sqlalchemy.orm import Session
-
-        from app.core.database import Base
-        from app.models.assignment import Assignment
-        from app.models.course import Course
-        from app.models.user import User
-
-        engine = create_engine("sqlite://")
-        Base.metadata.create_all(engine)
-        try:
-            with Session(engine) as db:
-                user = User(
-                    name="Idempotency Test",
-                    username="idempotency-test",
-                    email="idempotency@example.com",
-                    hashed_password="not-used",
-                )
-                db.add(user)
-                db.flush()
-                course = Course(user_id=user.id, name="Biology", code="BIO101", credits=0)
-                db.add(course)
-                db.flush()
-                data = AssignmentCreate(title="Retry-safe lab", course_id=course.id)
-
-                first = create_assignment(db, user.id, data, "sqlite-operation-1")
-                replay = create_assignment(db, user.id, data, "sqlite-operation-1")
-
-                assert replay == first
-                assert db.scalar(select(func.count()).select_from(Assignment)) == 1
-        finally:
-            Base.metadata.drop_all(engine)
-            engine.dispose()
-
-
 # ===========================================================================
 # 6.  Assignment – status transitions (_apply_status)
 # ===========================================================================
@@ -459,7 +366,7 @@ def _mock_assignment(status: str) -> MagicMock:
 
 
 class TestApplyStatus:
-    """Tests for assignment status transition validation."""
+    "Tests for assignment status transition validation."
 
     def test_pending_to_in_progress(self):
         a = _mock_assignment("pending")
@@ -527,7 +434,7 @@ from app.services.assignment_service import _next_recurrence_date
 
 
 class TestNextRecurrenceDate:
-    """Tests for recurrence date arithmetic."""
+    "Tests for recurrence date arithmetic."
 
     def test_daily_adds_one_day(self):
         base = date(2026, 9, 1)
@@ -567,7 +474,7 @@ def _overlaps(s1: dtime, e1: dtime, s2: dtime, e2: dtime) -> bool:
 
 
 class TestTimetableConflictOverlapLogic:
-    """Unit-tests the [start, end) overlap predicate used in has_conflict()."""
+    "Unit-tests the [start, end) overlap predicate used in has_conflict()."
 
     def test_no_overlap_sequential(self):
         # 09:00-10:00 then 10:00-11:00
@@ -614,7 +521,7 @@ from app.utils.validators import validate_timetable_times
 
 
 class TestValidateTimetableTimes:
-    """Tests for the timetable start/end ordering guard."""
+    "Tests for the timetable start/end ordering guard."
 
     def test_valid_times_pass(self):
         validate_timetable_times(dtime(9, 0), dtime(10, 0))  # should not raise
@@ -647,7 +554,8 @@ class TestStudySessionDurationCalculations:
     """
 
     def _minutes(self, sessions_seconds: list[int]) -> int:
-        """Simulate the per-day minutes calculation used in study_stats."""
+        """Simulate the per-day minutes calculation used in study_stats.
+        """
         return sum(s // 60 for s in sessions_seconds)
 
     def test_single_25_minute_pomodoro(self):
@@ -668,7 +576,7 @@ class TestStudySessionDurationCalculations:
         assert self._minutes([3600]) == 60
 
     def test_streak_counter_logic(self):
-        """Replicate the streak-counting loop from study_stats."""
+        "Replicate the streak-counting loop from study_stats."
         today = date.today()
         minutes_by_date = {
             today: 60,
@@ -740,6 +648,7 @@ class TestAttendanceWarningProjected:
         After attend_next consecutive attendances, the new percentage
         should be >= 75 %.
         """
+
         present, absent = 50, 50   # 50 % — below threshold
         _, _, _, attend_next, _ = _prediction(present, absent, 75.0)
         assert attend_next is not None

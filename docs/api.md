@@ -28,29 +28,35 @@ POST /auth/logout
 The backend sets HTTP-only access and refresh cookies. Browser requests must
 include credentials. See [authentication.md](./authentication.md).
 
+The resource routers currently cover `/courses`, `/assignments`,
+`/attendance`, `/timetable`, `/study`, `/cgpa`, and `/dashboard` in addition
+to `/auth`. The generated OpenAPI document at `/api/v1/openapi.json` is the
+source of truth for the complete route and schema list.
+
 ## Request IDs and errors
 
 The server accepts an optional UUID `X-Request-ID` header and generates one
 when it is absent or invalid. Every response returns the ID in the same
-header. Error responses also include it in `error.request_id`.
+header. Error responses use one canonical envelope:
 
 ```json
 {
-  "detail": "Request validation failed",
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Request validation failed",
-    "details": [
-      {
-        "field": "body.title",
-        "message": "Field required",
-        "type": "missing"
-      }
-    ],
-    "request_id": "8e5d..."
-  }
+  "code": "VALIDATION_ERROR",
+  "message": "Request validation failed",
+  "request_id": "8e5d...",
+  "details": [
+    {
+      "field": "body.title",
+      "message": "Field required",
+      "type": "missing"
+    }
+  ]
 }
 ```
+
+For errors without structured details, `details` is `null`. Error responses
+never expose stack traces, database errors, secrets, or other sensitive
+internal information.
 
 ## Pagination
 
@@ -71,14 +77,39 @@ Paginated collection endpoints accept `page` and `page_size`. Pages start at
 
 `409 Conflict` represents business-rule conflicts, duplicate records,
 idempotency conflicts, and stale optimistic-concurrency writes. Assignment
-updates use:
+updates carry the expected version in the JSON request body:
 
 ```http
-If-Match: 3
+PATCH /api/v1/assignments/42
+Content-Type: application/json
 ```
 
-Stale assignment writes return `VERSION_CONFLICT` with `server`, `client`, and
-`updated_at` fields.
+```json
+{
+  "title": "Database Assignment",
+  "version": 3
+}
+```
+
+On success, the response contains the updated assignment with `version`
+incremented to `4`. A stale request returns the standard error envelope:
+
+```json
+{
+  "code": "VERSION_CONFLICT",
+  "message": "Assignment changed on another device; fetch the latest version and retry",
+  "request_id": "8e5d...",
+  "details": null
+}
+```
+
+The conflict response does not include server and client assignment
+representations. Fetch the assignment again before resolving the conflict.
+
+`POST /api/v1/assignments` also requires the `X-Idempotency-Key` header. The
+key is scoped to the authenticated user and is stored with the request
+fingerprint and original response. Other mutation routes do not currently
+persist server-side idempotency records, even if the frontend queues them.
 
 ## Status codes
 
@@ -86,13 +117,12 @@ Stale assignment writes return `VERSION_CONFLICT` with `server`, `client`, and
 200  Successful read or update
 201  Resource created
 204  Successful delete or logout
-400  Invalid domain operation
+400  Invalid request or operation
 401  Missing or invalid authentication
-403  CSRF failure or forbidden operation
-404  Resource not found
-409  Conflict
-422  Request validation failure
+403  Authenticated but not permitted
+404  Resource not found or unavailable to the caller
+409  Conflict, such as a stale version or reused key with different payload
+422  Request failed schema validation
 429  Rate limit exceeded
 500  Unexpected server error
 ```
-

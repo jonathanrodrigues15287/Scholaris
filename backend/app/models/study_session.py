@@ -15,7 +15,7 @@ class StudySession(Base):
 	)
 
 	id: Mapped[int] = mapped_column(primary_key=True)
-	start_time: Mapped[datetime] = mapped_column(DateTime)
+	start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 	duration: Mapped[int] = mapped_column(Integer)
 	course_id: Mapped[int | None] = mapped_column(
 		ForeignKey("courses.id", ondelete="SET NULL"), nullable=True, index=True

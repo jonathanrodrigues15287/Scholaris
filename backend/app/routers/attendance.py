@@ -39,7 +39,7 @@ router = APIRouter(prefix="/attendance", tags=["attendance"])
 @router.get("", response_model=Page[AttendanceRead])
 def get_attendance(
 	course_id: int | None = Query(default=None, ge=1),
-	status: Literal["present", "absent"] | None = None,
+	status: Literal["present", "absent", "holiday", "exam"] | None = None,
 	date_from: date | None = None,
 	date_to: date | None = None,
 	sort_order: Literal["asc", "desc"] = "desc",

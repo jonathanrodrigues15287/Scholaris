@@ -161,11 +161,11 @@
   }
 
   function apiError(response, payload = null) {
-    const detail = payload?.error?.message || payload?.detail || `Request failed (${response.status})`;
+    const detail = payload?.message || `Request failed (${response.status})`;
     const error = new Error(detail);
     error.status = response.status;
-    error.code = payload?.error?.code || `HTTP_${response.status}`;
-    error.details = payload?.error?.details || [];
+    error.code = payload?.code || `HTTP_${response.status}`;
+    error.details = payload?.details || [];
     return error;
   }
 

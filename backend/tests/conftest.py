@@ -11,6 +11,21 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+def pytest_collection_modifyitems(items):
+    "Classify tests by their integration boundary for selective CI runs."
+    for item in items:
+        if item.name.startswith("test_") and item.module.__name__.endswith("test_unit"):
+            item.add_marker(pytest.mark.unit)
+            continue
+        if "api_client" in item.fixturenames:
+            item.add_marker(pytest.mark.api)
+            item.add_marker(pytest.mark.db)
+        elif item.module.__name__.endswith(
+            ("test_assignment_concurrency", "test_deadline_email_service")
+        ):
+            item.add_marker(pytest.mark.db)
+
+
 @pytest.fixture(scope="session")
 def api_app():
     test_database_url = os.environ.get("TEST_DATABASE_URL")

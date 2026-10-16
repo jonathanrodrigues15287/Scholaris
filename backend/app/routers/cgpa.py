@@ -38,13 +38,13 @@ router = APIRouter(prefix="/cgpa", tags=["cgpa"])
 
 @router.post("/sgpa", response_model=GpaResult, summary="Calculate SGPA for a single semester")
 def calculate_sgpa(request: GpaRequest):
-	"""Calculate Semester GPA from a list of course grades and credits."""
+	"Calculate Semester GPA from a list of course grades and credits."
 	return calculate_gpa(request.entries)
 
 
 @router.post("/cgpa", response_model=CgpaResult, summary="Calculate cumulative CGPA across all semesters")
 def calculate_cgpa_result(request: CgpaRequest):
-	"""Calculate cumulative GPA with a per-semester breakdown."""
+	"Calculate cumulative GPA with a per-semester breakdown."
 	return calculate_cgpa(request.semesters)
 
 
