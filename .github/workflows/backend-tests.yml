@@ -33,7 +33,6 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install -r backend/requirements.txt
-      - run: alembic -c backend/alembic.ini upgrade head
       - run: pytest backend/tests/test_migrations.py -q
       - run: pytest backend/tests/test_deadline_email_worker.py backend/tests/test_deadline_email_scheduler.py backend/tests/test_deadline_email_service.py -q
       - run: pytest backend/tests --collect-only -q
