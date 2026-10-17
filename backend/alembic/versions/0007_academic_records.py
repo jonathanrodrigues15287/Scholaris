@@ -37,5 +37,5 @@ def downgrade() -> None:
 	op.drop_constraint("ck_courses_credits_nonnegative", "courses", type_="check")
 	op.drop_index("ix_courses_semester_id", table_name="courses")
 	op.drop_constraint("fk_courses_semester_id", "courses", type_="foreignkey")
-	op.drop_column("semester_id", table_name="courses")
-	op.drop_column("grade", table_name="courses")
+	op.drop_column("courses", "semester_id")
+	op.drop_column("courses", "grade")

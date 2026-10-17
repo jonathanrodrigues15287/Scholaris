@@ -73,5 +73,5 @@ def downgrade() -> None:
 	op.drop_constraint("ck_attendance_status", "attendance", type_="check")
 	op.drop_index("ix_attendance_semester_id", table_name="attendance")
 	op.drop_constraint("fk_attendance_semester_id", "attendance", type_="foreignkey")
-	op.drop_column("semester_id", table_name="attendance")
-	op.drop_column("minimum_attendance_threshold", table_name="users")
+	op.drop_column("attendance", "semester_id")
+	op.drop_column("users", "minimum_attendance_threshold")

@@ -63,4 +63,4 @@ def downgrade() -> None:
 	op.drop_index("ix_timetable_semester_id", table_name="timetable")
 	op.drop_constraint("fk_timetable_semester_id", "timetable", type_="foreignkey")
 	for column in ("semester_id", "recurrence_until", "recurrence_rule", "faculty"):
-		op.drop_column(column, table_name="timetable")
+		op.drop_column("timetable", column)
