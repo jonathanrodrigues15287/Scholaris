@@ -129,10 +129,9 @@ database-backed tests locally; CI should provide it and fail the job if the
 database setup cannot run.
 
 The current branch also contains pre-existing collection blockers in
-`backend/tests/test_unit.py`, `backend/app/utils/validators.py`, and
-`backend/tests/test_query_instrumentation.py`. The commands above are the
-intended target commands; the full suite will become runnable after those
-baseline issues are repaired.
+`backend/tests/test_unit.py` and `backend/app/utils/validators.py`. The
+commands above are the intended target commands; the full suite will become
+runnable after those baseline issues are repaired.
 
 The frontend queue contract is covered by
 [api.test.js](../frontend/tests/api.test.js), including assignment
