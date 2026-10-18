@@ -1,4 +1,4 @@
-\nconst assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const test = require('node:test');
 const { loadBusiness } = require('./test-utils');
 
@@ -88,4 +88,4 @@ test('detects invalid academic names, semester numbers, and duplicates', () => {
   assert.equal(result.errors.some(error => error.message === 'Semester numbers must be unique.'), true);
   assert.equal(result.errors.some(error => error.message === 'Subject name is required.'), true);
   assert.equal(result.errors.some(error => error.message === 'Subject codes must be unique.'), true);
-});\n\n
+});

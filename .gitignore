@@ -15,7 +15,7 @@ dist/
 build/
 *.log
 
-# Backend test suite
+# Backend tests are excluded unless explicitly requested.
 /backend/tests/
 
 .DS_Store

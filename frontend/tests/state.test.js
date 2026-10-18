@@ -1,4 +1,4 @@
-\nconst assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
@@ -26,4 +26,4 @@ test('state API owns in-memory updates', () => {
   window.ScholarisStateApi.set('assignments', [{ title: 'Read chapter 1' }]);
   window.ScholarisStateApi.update('assignments', assignments => [...assignments, { title: 'Review notes' }]);
   assert.deepEqual(window.ScholarisStateApi.get('assignments').map(item => item.title), ['Read chapter 1', 'Review notes']);
-});\n\n
+});
