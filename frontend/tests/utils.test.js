@@ -1,4 +1,4 @@
-\nconst assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
@@ -43,6 +43,7 @@ test('publishes the shared utility API', () => {
 test('escapes HTML and parses JSON with a fallback', () => {
   const utilities = loadUtilities();
   assert.equal(utilities.escapeHtml('<script>alert("x")</script>'), '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+  assert.equal(utilities.escapeHtml(`O'Reilly "Maths"`), 'O&#39;Reilly &quot;Maths&quot;');
   assert.equal(JSON.stringify(utilities.parseJson('{"ok":true}', {})), '{"ok":true}');
   assert.equal(JSON.stringify(utilities.parseJson('invalid', { ok: false })), '{"ok":false}');
 });

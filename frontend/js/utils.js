@@ -11,9 +11,13 @@
   }
 
   function escapeHtml(value) {
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(String(value ?? '')));
-    return div.innerHTML;
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[character]);
   }
 
   function createId(prefix = 'item') {

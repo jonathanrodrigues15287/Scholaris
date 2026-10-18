@@ -3,6 +3,10 @@
 The repository currently contains frontend business-logic tests. Backend test
 assets and browser automation are not part of the repository.
 
+Production deployments require a shared Redis instance configured with
+`REDIS_URL` for coordinated login throttling across API processes. Local
+development can use the bounded in-process fallback.
+
 ## Frontend tests
 
 Frontend business-logic tests run independently with Node:

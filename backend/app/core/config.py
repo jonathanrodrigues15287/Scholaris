@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 	DEBUG: bool = False
 
 	DATABASE_URL: str
+	REDIS_URL: str | None = None
 	SMTP_HOST: str | None = None
 	SMTP_PORT: int = 587
 	SMTP_USERNAME: str | None = None
@@ -42,6 +43,8 @@ class Settings(BaseSettings):
 				raise ValueError("DEBUG must be false in production")
 			if "*" in self.CORS_ORIGINS:
 				raise ValueError("Wildcard CORS origins are not allowed in production")
+			if not self.REDIS_URL:
+				raise ValueError("REDIS_URL must be configured in production")
 		return self
 
 	@property
