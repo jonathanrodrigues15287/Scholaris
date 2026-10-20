@@ -12,6 +12,7 @@
   const saveCgpaBtn = document.getElementById('save-cgpa-btn');
   const overallCgpaResult = document.getElementById('overall-cgpa-result');
   let backendSyncTimer = null;
+  let backendSyncPromise = null;
 
   if (!semestersContainer) return;
 
@@ -22,6 +23,15 @@
 
   function save(data) {
     ScholarisStateApi.set('academicRecords', data, { persist: true });
+  }
+
+  function setEditingDisabled(disabled) {
+    semestersContainer.querySelectorAll('input, button').forEach((control) => {
+      control.disabled = disabled;
+    });
+    if (addSemesterBtn) addSemesterBtn.disabled = disabled;
+    if (saveCgpaBtn) saveCgpaBtn.disabled = disabled;
+    semestersContainer.setAttribute('aria-busy', String(disabled));
   }
 
   // Get current state from DOM
@@ -314,32 +324,53 @@
       Scholaris.utils.toast?.('Connect your account before saving academic records.', 'error');
       return;
     }
-    saveCgpaBtn.disabled = true;
-    try {
-      for (const semester of getState()) {
-        let semesterId = semester.serverId;
-        if (!semesterId) {
-          const created = await ScholarisApi.createAcademicSemester({
-            name: semester.name,
-            semester_number: semester.semesterNumber,
-            academic_year: semester.academicYear
-          });
-          semesterId = created.id;
+    if (backendSyncPromise) return backendSyncPromise;
+
+    clearTimeout(backendSyncTimer);
+    backendSyncPromise = (async () => {
+      setEditingDisabled(true);
+      const semesters = getState();
+      save(semesters);
+      try {
+        for (const [semesterIndex, semester] of semesters.entries()) {
+          let semesterId = semester.serverId;
+          if (!semesterId) {
+            const created = await ScholarisApi.createAcademicSemester({
+              name: semester.name,
+              semester_number: semester.semesterNumber,
+              academic_year: semester.academicYear
+            });
+            semesterId = created.id;
+            semester.serverId = semesterId;
+            const semesterCard = semestersContainer.querySelectorAll('.semester-card')[semesterIndex];
+            if (semesterCard) semesterCard.dataset.serverId = semesterId;
+            save(semesters);
+          }
+          for (const subject of semester.subjects) {
+            if (!subject.name || !subject.credits || subject.grade === '') continue;
+            const payload = { name: subject.name, code: subject.code || subject.name.slice(0, 20).toUpperCase(), credits: Number(subject.credits), grade: Number(subject.grade) };
+            if (subject.serverId) {
+              await ScholarisApi.updateAcademicCourse(subject.serverId, payload);
+            } else {
+              const created = await ScholarisApi.createAcademicCourse(semesterId, payload);
+              subject.serverId = created.id;
+              const subjectRow = Array.from(semestersContainer.querySelectorAll('.cgpa-row'))
+                .find(row => row.dataset.id === subject.id);
+              if (subjectRow) subjectRow.dataset.serverId = created.id;
+              save(semesters);
+            }
+          }
         }
-        for (const subject of semester.subjects) {
-          if (!subject.name || !subject.credits || subject.grade === '') continue;
-          const payload = { name: subject.name, code: subject.code || subject.name.slice(0, 20).toUpperCase(), credits: Number(subject.credits), grade: Number(subject.grade) };
-          if (subject.serverId) await ScholarisApi.updateAcademicCourse(subject.serverId, payload);
-          else await ScholarisApi.createAcademicCourse(semesterId, payload);
-        }
+        await hydrateFromBackend();
+        Scholaris.utils.toast?.('Academic records saved to your account.');
+      } catch (error) {
+        Scholaris.utils.toast?.(error.message, 'error');
+      } finally {
+        setEditingDisabled(false);
+        backendSyncPromise = null;
       }
-      await hydrateFromBackend();
-      Scholaris.utils.toast?.('Academic records saved to your account.');
-    } catch (error) {
-      Scholaris.utils.toast?.(error.message, 'error');
-    } finally {
-      saveCgpaBtn.disabled = false;
-    }
+    })();
+    return backendSyncPromise;
   }
 
   saveCgpaBtn?.addEventListener('click', syncToBackend);
