@@ -1,4 +1,4 @@
-\n﻿/* ============================================================
+﻿/* ============================================================
    assignments.css — Assignment form, filters, task list items
    ============================================================ */
 
@@ -249,4 +249,3 @@
   color: transparent !important; /* hide the text */
   background-color: var(--surface-hover); /* make it look disabled/auto */
 }
-\n\n

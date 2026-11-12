@@ -23,6 +23,7 @@
   /* DOM refs */
   const uploadZone   = document.getElementById('tt-upload-zone');
   const fileInput    = document.getElementById('tt-file-input');
+  const browseBtn    = document.getElementById('tt-browse-btn');
   const progressWrap = document.getElementById('tt-progress-wrap');
   const progressBar  = document.getElementById('tt-progress-bar');
   const progressLbl  = document.getElementById('tt-progress-label');
@@ -69,7 +70,10 @@
 
   /* ===== 1. UPLOAD ZONE ===== */
   uploadZone.addEventListener('click', () => fileInput.click());
-  uploadZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+  browseBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    fileInput.click();
+  });
   fileInput.addEventListener('change', () => { if (fileInput.files[0]) processFile(fileInput.files[0]); });
   uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
   uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));

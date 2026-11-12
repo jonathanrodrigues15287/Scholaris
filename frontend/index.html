@@ -1,4 +1,4 @@
-\n<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -222,13 +222,17 @@
         </header>
 
         <!-- Upload Zone -->
-        <div class="tt-upload-zone" id="tt-upload-zone" role="button" tabindex="0" aria-label="Upload timetable PDF or image">
+        <div class="tt-upload-zone" id="tt-upload-zone" role="region" aria-label="Timetable file upload">
           <input type="file" id="tt-file-input" accept=".pdf,image/*" hidden aria-hidden="true">
           <div class="tt-upload-icon">
-            <i class="ph ph-upload-simple" aria-hidden="true"></i>
+            <i class="ph-fill ph-cloud-arrow-up" aria-hidden="true"></i>
           </div>
           <p class="tt-upload-title">Drop your timetable here</p>
-          <p class="tt-upload-hint">Supports PDF, PNG, JPG, JPEG, WEBP — or <span class="tt-upload-link">click to browse</span></p>
+          <p class="tt-upload-hint" id="tt-upload-hint">Supports PDF, PNG, JPG, JPEG, WEBP</p>
+          <button class="btn tt-browse-btn" id="tt-browse-btn" type="button">
+            <i class="ph ph-folder-open" aria-hidden="true"></i>
+            Choose a file
+          </button>
         </div>
 
         <!-- OCR Progress -->
@@ -727,4 +731,4 @@
   </div>
   <script src="js/timetable.js"></script>
 </body>
-</html>\n\n
+</html>

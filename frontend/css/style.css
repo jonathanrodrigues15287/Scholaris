@@ -1,4 +1,4 @@
-\n/* ============================================================
+/* ============================================================
    style.css — Global base, design tokens, layout, typography
    Imports all other partials.
    ============================================================ */
@@ -1176,4 +1176,3 @@ select.form-control {
 
 .field-char-count.near-limit { color: #f59e0b; }
 .field-char-count.at-limit   { color: #ef4444; }
-\n\n
