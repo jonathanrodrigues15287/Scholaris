@@ -15,8 +15,5 @@ dist/
 build/
 *.log
 
-# Backend tests are excluded unless explicitly requested.
-/backend/tests/
-
 .DS_Store
 Thumbs.db
