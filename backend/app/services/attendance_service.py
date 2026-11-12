@@ -191,7 +191,7 @@ def attendance_summary(
 		)
 		.join(Course)
 		.where(Course.user_id == owner_id, Course.deleted_at.is_(None))
-		.group_by(Attendance.course_id)
+		.group_by(Attendance.course_id, Course.name, Course.code)
 	)
 	if course_id is not None:
 		query = query.where(Attendance.course_id == course_id)
@@ -281,4 +281,3 @@ def update_attendance_threshold(db: Session, owner_id: int, threshold: float) ->
 	db.commit()
 	db.refresh(user)
 	return float(user.minimum_attendance_threshold)
-

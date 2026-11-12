@@ -20,16 +20,28 @@ os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("DEBUG", "false")
 
 
+@pytest.fixture(autouse=True)
+def clear_login_rate_limit_state():
+    from app.core import rate_limit
+
+    rate_limit._failures.clear()
+    yield
+    rate_limit._failures.clear()
+
+
 @pytest.fixture
 def db_session():
     from app.core.database import Base
     import app.models
 
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    database_url = os.getenv("TEST_DATABASE_URL", "sqlite://")
+    engine_options = {}
+    if database_url.startswith("sqlite"):
+        engine_options = {
+            "connect_args": {"check_same_thread": False},
+            "poolclass": StaticPool,
+        }
+    engine = create_engine(database_url, **engine_options)
     Base.metadata.create_all(engine)
     test_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = test_session()
