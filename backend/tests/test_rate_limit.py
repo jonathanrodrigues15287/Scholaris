@@ -13,7 +13,6 @@ def test_repeated_failed_logins_are_rate_limited(client):
     )
     assert registered.status_code == 201
 
-    rate_limit._failures.clear()
     for _ in range(5):
         failed_login = client.post(
             "/api/v1/auth/login",
@@ -29,4 +28,3 @@ def test_repeated_failed_logins_are_rate_limited(client):
     assert limited_login.status_code == 429
     assert limited_login.json()["code"] == "RATELIMIT"
     assert int(limited_login.headers["Retry-After"]) > 0
-    rate_limit._failures.clear()

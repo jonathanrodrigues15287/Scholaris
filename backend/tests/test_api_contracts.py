@@ -98,6 +98,38 @@ def test_user_cannot_read_another_users_assignment(client, db_session):
     assert response.json()["code"] == "NOTFOUND"
 
 
+def test_user_cannot_patch_or_delete_another_users_assignment(client, db_session):
+    owner = _create_user(db_session, "assignment-owner-2")
+    other_user = _create_user(db_session, "assignment-editor")
+    course = _create_course(db_session, owner)
+    created = client.post(
+        "/api/v1/assignments",
+        json=_assignment_payload(course.id),
+        headers={**_bearer(owner), "X-Idempotency-Key": "owner-operation-2"},
+    )
+    assignment = created.json()
+    other_headers = _bearer(other_user)
+
+    patch = client.patch(
+        f"/api/v1/assignments/{assignment['id']}",
+        json={"title": "Unauthorized edit", "version": assignment["version"]},
+        headers=other_headers,
+    )
+    delete = client.delete(
+        f"/api/v1/assignments/{assignment['id']}",
+        headers=other_headers,
+    )
+
+    assert patch.status_code == 404
+    assert delete.status_code == 404
+
+
+def test_unauthenticated_assignment_requests_return_401(client):
+    assert client.get("/api/v1/assignments").status_code == 401
+    assert client.patch("/api/v1/assignments/1", json={"title": "Nope", "version": 1}).status_code == 401
+    assert client.delete("/api/v1/assignments/1").status_code == 401
+
+
 def test_authenticated_mutation_without_csrf_returns_forbidden(client):
     registered = client.post(
         "/api/v1/auth/register",
@@ -123,3 +155,60 @@ def test_authenticated_mutation_without_csrf_returns_forbidden(client):
 
     assert response.status_code == 403
     assert response.json()["code"] == "CSRF_ERROR"
+
+
+def test_authenticated_mutation_with_valid_csrf_returns_created(client):
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "csrf-success",
+            "email": "csrf-success@example.com",
+            "name": "CSRF Success",
+            "password": "StrongPassword1!",
+        },
+    )
+    assert registered.status_code == 201
+    login = client.post(
+        "/api/v1/auth/login",
+        data={"username": "csrf-success", "password": "StrongPassword1!"},
+    )
+    assert login.status_code == 200
+
+    csrf_token = client.cookies.get("csrf_token")
+    response = client.post(
+        "/api/v1/courses",
+        json={"name": "Databases", "code": "DB101"},
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["code"] == "DB101"
+
+
+def test_refresh_rotates_the_refresh_session(client):
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "refresh-user",
+            "email": "refresh@example.com",
+            "name": "Refresh User",
+            "password": "StrongPassword1!",
+        },
+    )
+    assert registered.status_code == 201
+    login = client.post(
+        "/api/v1/auth/login",
+        data={"username": "refresh-user", "password": "StrongPassword1!"},
+    )
+    assert login.status_code == 200
+    original_refresh = client.cookies.get("refresh_token")
+    csrf_token = client.cookies.get("csrf_token")
+
+    refreshed = client.post(
+        "/api/v1/auth/refresh",
+        headers={"X-CSRF-Token": csrf_token},
+    )
+
+    assert refreshed.status_code == 200
+    assert refreshed.json()["authenticated"] is True
+    assert client.cookies.get("refresh_token") != original_refresh

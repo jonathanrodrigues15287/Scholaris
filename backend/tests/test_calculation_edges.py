@@ -45,6 +45,36 @@ def test_cgpa_with_zero_credits_returns_zero():
     assert result.per_semester[0].gpa == 0.0
 
 
+def test_gpa_uses_credit_weighted_average_for_normal_input():
+    result = calculate_gpa([
+        SimpleNamespace(grade=8.0, credits=3),
+        SimpleNamespace(grade=10.0, credits=1),
+    ])
+
+    assert result.gpa == 8.5
+    assert result.total_credits == 4
+
+
+def test_cgpa_combines_multiple_semesters_by_total_credits():
+    result = calculate_cgpa([
+        SemesterResult(
+            semester=1,
+            entries=[
+                GradeEntry(grade=8.0, credits=3),
+                GradeEntry(grade=10.0, credits=1),
+            ],
+        ),
+        SemesterResult(
+            semester=2,
+            entries=[GradeEntry(grade=6.0, credits=2)],
+        ),
+    ])
+
+    assert result.gpa == 7.67
+    assert result.total_credits == 6
+    assert [item.gpa for item in result.per_semester] == [8.5, 6.0]
+
+
 @pytest.mark.parametrize("grade", [0.0, 10.0])
 def test_grade_boundaries_are_accepted(grade):
     entry = GradeEntry(grade=grade, credits=1)
