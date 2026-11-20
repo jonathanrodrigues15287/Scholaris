@@ -339,6 +339,7 @@
       body
     });
     saveSession(data);
+    await getOrCreateDefaultCourse();
     return data;
   }
 
@@ -496,16 +497,23 @@
 
   async function getOrCreateDefaultCourse() {
     const courses = await getCourses();
-    if (courses && courses.length) return courses[0];
-    return request('/courses', {
+    if (courses && courses.length) {
+      localStorage.setItem('scholaris_default_course_id', String(courses[0].id));
+      return courses[0];
+    }
+    const course = await request('/courses', {
       method: 'POST',
       body: JSON.stringify({ name: 'General', code: 'GEN', credits: 0 })
     });
+    localStorage.setItem('scholaris_default_course_id', String(course.id));
+    return course;
   }
 
   async function createAssignment(task) {
     const idempotencyKey = task.operationId || (task.operationId = createId('op'));
-    const course = await getOrCreateDefaultCourse();
+    const course = navigator.onLine
+      ? await getOrCreateDefaultCourse()
+      : { id: Number(localStorage.getItem('scholaris_default_course_id')) || 1 };
     return request('/assignments', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': idempotencyKey },
