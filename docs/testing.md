@@ -22,6 +22,25 @@ interaction.
 
 ## Future coverage
 
-When browser automation is introduced, document its commands and CI jobs here.
-Browser workflows should cover offline assignment creation, reconnect retries,
-idempotency, authentication cookies, and CSRF.
+## Browser tests
+
+Browser-level Playwright tests exercise the real FastAPI server and static
+frontend. They cover registration and sign-in cookies, CSRF mutation headers,
+offline assignment creation, reconnect replay, and session/cookie sharing
+across tabs.
+
+Install the browser dependencies once:
+
+```powershell
+npm install
+npx playwright install chromium
+```
+
+Run the suite from the repository root:
+
+```powershell
+npm run test:browser
+```
+
+Playwright starts an isolated SQLite backend on port `8000` and the static
+frontend on port `5500`. The backend database is recreated for each run.

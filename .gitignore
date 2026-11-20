@@ -13,6 +13,8 @@ coverage/
 htmlcov/
 dist/
 build/
+playwright-report/
+test-results/
 *.log
 
 .DS_Store

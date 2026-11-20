@@ -147,7 +147,16 @@ node --test frontend/tests/*.test.js
 ```
 
 The suite covers state, API helpers, assignments, attendance, CGPA, timers,
-and events. Browser automation is not currently included, so these tests do
-not verify browser storage durability, multi-tab behavior, or live
-network/server interaction. See the [testing strategy](./docs/testing.md) for
-coverage details and known limitations.
+and events.
+
+Run the real-browser Playwright suite with:
+
+```powershell
+npm install
+npx playwright install chromium
+npm run test:browser
+```
+
+Browser tests cover sign-in cookies, CSRF mutation headers, offline changes,
+reconnect replay, and multiple tabs. See the [testing
+strategy](./docs/testing.md) for details.
