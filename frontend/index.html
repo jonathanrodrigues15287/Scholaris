@@ -57,6 +57,11 @@
             <i class="ph-fill ph-calendar-check" aria-hidden="true"></i> Attendance
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" data-target="sync-review" role="button" tabindex="0">
+            <i class="ph ph-cloud-arrow-up" aria-hidden="true"></i> Pending Changes
+          </a>
+        </li>
       </ul>
       <button class="nav-link accounts-nav-btn" id="accounts-btn" type="button" data-target="accounts" title="Accounts" aria-label="Open accounts">
         <i class="ph ph-user-circle" aria-hidden="true"></i>
@@ -118,6 +123,25 @@
               </a>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ── Pending Changes ── -->
+      <section id="sync-review" class="section">
+        <header class="section-header">
+          <h1 class="section-title">Pending changes</h1>
+          <p class="section-subtitle">Review locally saved operations that need another sync attempt or a conflict decision.</p>
+        </header>
+        <div class="card sync-review-card">
+          <div class="sync-review-actions">
+            <span id="sync-review-summary" class="text-secondary" role="status" aria-live="polite"></span>
+            <div class="sync-review-buttons">
+              <button type="button" class="btn btn-secondary" id="sync-review-refresh">Refresh</button>
+              <button type="button" class="btn" id="sync-review-retry-all">Retry pending</button>
+              <button type="button" class="btn btn-danger" id="sync-review-discard-failed">Discard failed</button>
+            </div>
+          </div>
+          <ul class="sync-review-list" id="sync-review-list"></ul>
         </div>
       </section>
 
@@ -730,5 +754,6 @@
     </dialog>
   </div>
   <script src="js/timetable.js"></script>
+  <script src="js/sync-review.js"></script>
 </body>
 </html>

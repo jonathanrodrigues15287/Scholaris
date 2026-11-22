@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import DomainError
 from app.core.logging import current_request_id
 from app.core.middleware import SecurityMiddleware
+from app.core.idempotency import IdempotencyMiddleware
 from app.jobs.deadline_email_scheduler import deadline_email_lifespan
 import app.models
 from app.routers import assignments, attendance as attendance_router, auth, cgpa, courses, dashboard, study, timetable as timetable_router
@@ -124,6 +125,7 @@ app.add_exception_handler(IntegrityError, handle_integrity_error)
 app.add_exception_handler(StaleDataError, handle_stale_data_error)
 app.add_exception_handler(Exception, handle_unexpected_error)
 app.add_middleware(SecurityMiddleware)
+app.add_middleware(IdempotencyMiddleware)
 app.add_middleware(
 	CORSMiddleware,
 	allow_origins=settings.CORS_ORIGINS,
