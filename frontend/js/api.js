@@ -85,6 +85,10 @@
     return error instanceof TypeError || error.status === undefined;
   }
 
+  function isOffline() {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
   function isRetryableFailure(error) {
     return isNetworkFailure(error)
       || error.status === 408
@@ -136,6 +140,15 @@
       else delete headers['X-CSRF-Token'];
     }
 
+    if (authenticated && isMutating(options) && !skipQueue && isOffline()) {
+      const operation = enqueueOperation(path, { ...options, headers });
+      const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
+      queuedError.queued = true;
+      queuedError.operationId = operation.id;
+      queuedError.syncState = 'retryable';
+      throw queuedError;
+    }
+
     let response;
     try {
       response = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers, credentials: 'include' });
@@ -179,7 +192,7 @@
   }
 
   async function flushSyncQueue() {
-    if (!authenticated || syncing || !navigator.onLine) return;
+    if (!authenticated || syncing || isOffline()) return;
     const queue = readQueue().filter(operation =>
       RETRYABLE_STATES.has(operation.state) && operation.userId === currentUserId
     );
@@ -561,9 +574,9 @@
 
   async function createAssignment(task) {
     const idempotencyKey = task.operationId || (task.operationId = createId('op'));
-    const course = navigator.onLine
-      ? await getOrCreateDefaultCourse()
-      : { id: Number(localStorage.getItem('scholaris_default_course_id')) || 1 };
+    const course = isOffline()
+      ? { id: Number(localStorage.getItem('scholaris_default_course_id')) || 1 }
+      : await getOrCreateDefaultCourse();
     return request('/assignments', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': idempotencyKey },
