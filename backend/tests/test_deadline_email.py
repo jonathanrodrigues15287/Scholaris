@@ -54,8 +54,11 @@ def test_deadline_email_job_sends_grouped_reminders_and_marks_assignments(
 
 def test_duplicate_reminder_run_is_skipped_by_process_lease(db_session, monkeypatch):
     from app.services import deadline_email_service
+    from app.core.config import settings
 
     due_date = date(2030, 1, 2)
+    monkeypatch.setattr(settings, "REDIS_URL", None)
+    deadline_email_service._local_reminder_locks.clear()
     acquired, lease = deadline_email_service._acquire_reminder_lock(
         db_session,
         due_date,
@@ -76,6 +79,7 @@ def test_duplicate_reminder_run_is_skipped_by_process_lease(db_session, monkeypa
         assert sent == []
     finally:
         deadline_email_service._release_reminder_lock(lease)
+        deadline_email_service._local_reminder_locks.clear()
 
 
 def test_deadline_email_worker_status_reports_lifecycle():

@@ -69,7 +69,9 @@ def test_expired_access_token_is_rejected():
 
 def test_tampered_token_is_rejected():
     token = create_access_token("42")
-    tampered = f"{token[:-1]}{'a' if token[-1] != 'a' else 'b'}"
+    header, payload, signature = token.split(".")
+    tampered_signature = ("A" if signature[0] != "A" else "B") + signature[1:]
+    tampered = ".".join((header, payload, tampered_signature))
 
     with pytest.raises(jwt.InvalidTokenError):
         decode_access_token(tampered)

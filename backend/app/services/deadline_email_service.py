@@ -83,6 +83,11 @@ def _acquire_reminder_lock(db: Session, due_date: date) -> tuple[bool, object | 
 	lock_key = f"scholaris:deadline-reminders:{due_date.isoformat()}"
 	token = str(uuid.uuid4())
 
+	with _local_reminder_locks_lock:
+		if lock_key in _local_reminder_locks:
+			logger.info("Deadline reminder run already claimed in this process", extra={"due_date": due_date.isoformat()})
+			return False, None
+
 	if settings.REDIS_URL:
 		try:
 			import redis
@@ -90,6 +95,8 @@ def _acquire_reminder_lock(db: Session, due_date: date) -> tuple[bool, object | 
 			client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
 			acquired = bool(client.set(lock_key, token, nx=True, ex=24 * 60 * 60))
 			if acquired:
+				with _local_reminder_locks_lock:
+					_local_reminder_locks.add(lock_key)
 				return True, ("redis", client, lock_key, token)
 			logger.info("Deadline reminder run already claimed by another process", extra={"due_date": due_date.isoformat()})
 			return False, None
@@ -104,6 +111,8 @@ def _acquire_reminder_lock(db: Session, due_date: date) -> tuple[bool, object | 
 			{"lock_key": lock_key},
 		).scalar())
 		if acquired:
+			with _local_reminder_locks_lock:
+				_local_reminder_locks.add(lock_key)
 			return True, ("postgresql", db, lock_key)
 		logger.info("Deadline reminder run already claimed by another PostgreSQL session", extra={"due_date": due_date.isoformat()})
 		return False, None
@@ -129,6 +138,8 @@ def _release_reminder_lock(lease: object | None) -> None:
 				lock_key,
 				token,
 			)
+			with _local_reminder_locks_lock:
+				_local_reminder_locks.discard(lock_key)
 		elif lease_type == "postgresql":
 			_, db, lock_key = lease
 			db.execute(
@@ -136,6 +147,8 @@ def _release_reminder_lock(lease: object | None) -> None:
 				{"lock_key": lock_key},
 			)
 			db.commit()
+			with _local_reminder_locks_lock:
+				_local_reminder_locks.discard(lock_key)
 		elif lease_type == "local":
 			with _local_reminder_locks_lock:
 				_local_reminder_locks.discard(lease[1])
