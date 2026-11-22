@@ -14,6 +14,7 @@
   let authenticated = false;
   let currentUserId = null;
   let syncing = false;
+  let forcedOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
 
   function token() {
     return '';
@@ -93,7 +94,7 @@
   }
 
   function isOffline() {
-    return typeof navigator !== 'undefined' && navigator.onLine === false;
+    return forcedOffline || (typeof navigator !== 'undefined' && navigator.onLine === false);
   }
 
   function isRetryableFailure(error) {
@@ -819,9 +820,15 @@
     flushSyncQueue();
   });
 
-  window.addEventListener('online', flushSyncQueue);
+  window.addEventListener('online', () => {
+    forcedOffline = false;
+    flushSyncQueue();
+  });
   window.addEventListener('online', setSyncStatus);
-  window.addEventListener('offline', setSyncStatus);
+  window.addEventListener('offline', () => {
+    forcedOffline = true;
+    setSyncStatus();
+  });
   Scholaris.events?.on('sync-state-changed', () => {
     setAuthStatus(isAuthenticated() ? 'Backend connected' : 'Offline mode', isAuthenticated());
     setSyncStatus();
