@@ -523,6 +523,65 @@ body.sidebar-open .sidebar-overlay {
   content: '⚠';
 }
 
+.sync-review-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.sync-review-actions,
+.sync-review-item,
+.sync-review-item-actions,
+.sync-review-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.sync-review-actions,
+.sync-review-item {
+  justify-content: space-between;
+}
+
+.sync-review-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sync-review-item {
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+}
+
+.sync-review-item > div:first-child,
+.sync-review-operation {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.sync-review-state {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.sync-review-conflict,
+.sync-review-permanent {
+  border-left: 4px solid #b91c1c;
+}
+
+.sync-review-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 8rem;
+  color: var(--text-secondary);
+}
+
 .api-auth-input {
   width: 120px;
   min-height: 34px;

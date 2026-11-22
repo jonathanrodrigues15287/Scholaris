@@ -71,6 +71,9 @@ test('assignment conflict resolution supports merge, keep-mine, and use-server',
     requests.push({ path, options });
     if (path === '/auth/me') return jsonResponse(401, {});
     if (path === '/auth/login') return jsonResponse(200, { user: { id: 7 } });
+    if (path === '/courses' && (!options.method || options.method === 'GET')) {
+      return jsonResponse(200, { items: [{ id: 1, name: 'General', code: 'GEN', credits: 0 }] });
+    }
     if (path === '/assignments/42' && options.method === 'PATCH') {
       if (firstUpdate) {
         firstUpdate = false;
@@ -133,6 +136,9 @@ test('keeps retryable and permanent queue failures distinguishable', async () =>
     const path = new URL(url).pathname.replace('/api/v1', '');
     if (path === '/auth/me') return jsonResponse(401, {});
     if (path === '/auth/login') return jsonResponse(200, { user: { id: 7 } });
+    if (path === '/courses' && (!options.method || options.method === 'GET')) {
+      return jsonResponse(200, { items: [{ id: 1, name: 'General', code: 'GEN', credits: 0 }] });
+    }
     if (path === '/assignments/42' && options.method === 'PATCH') {
       if (mode === 'network') throw new TypeError('offline');
       return jsonResponse(422, {

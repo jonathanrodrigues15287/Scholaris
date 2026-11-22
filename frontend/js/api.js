@@ -8,6 +8,8 @@
   const QUEUE_KEY = 'scholaris_sync_queue';
   const SYNC_STATE_KEY = 'scholaris_sync_state';
   const MAX_RETRIES = 5;
+  const MAX_QUEUE_OPERATIONS = 500;
+  const QUEUE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
   const RETRYABLE_STATES = new Set(['pending', 'retryable']);
   let authenticated = false;
   let currentUserId = null;
@@ -27,7 +29,18 @@
   }
 
   function readQueue() {
-    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (_) { return []; }
+    try {
+      const queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+      const cutoff = Date.now() - QUEUE_RETENTION_MS;
+      const retained = queue.filter(operation => {
+        if (!operation.createdAt) return true;
+        const created = Date.parse(operation.createdAt);
+        if (!Number.isFinite(created) || created >= cutoff) return true;
+        return RETRYABLE_STATES.has(operation.state) || operation.state === 'syncing';
+      }).slice(-MAX_QUEUE_OPERATIONS);
+      if (retained.length !== queue.length) writeQueue(retained);
+      return retained;
+    } catch (_) { return []; }
   }
 
   function writeQueue(queue) {
@@ -113,6 +126,9 @@
   async function request(path, options = {}) {
     const { skipQueue, ...fetchOptions } = options;
     const headers = { ...(options.headers || {}) };
+    if (isMutating(options) && !headers['X-Idempotency-Key']) {
+      headers['X-Idempotency-Key'] = createId('op');
+    }
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
     if (options.method && !['GET', 'HEAD', 'OPTIONS'].includes(options.method.toUpperCase())) {
       const csrf = cookie('csrf_token');
@@ -240,8 +256,13 @@
     return readQueue().filter(operation =>
       operation.userId === currentUserId
       && operation.state === 'conflict'
-      && operation.method === 'PATCH'
-      && /^\/assignments\/\d+$/.test(operation.path)
+    );
+  }
+
+  function getSyncReviewOperations() {
+    return readQueue().filter(operation =>
+      operation.userId === currentUserId
+      && ['conflict', 'permanent', 'retryable', 'pending'].includes(operation.state)
     );
   }
 
@@ -260,6 +281,35 @@
     writeQueue(queue);
     flushSyncQueue();
     return true;
+  }
+
+  function discardSyncOperation(operationId) {
+    const queue = readQueue();
+    const next = queue.filter(item => !(item.id === operationId && item.userId === currentUserId));
+    if (next.length === queue.length) return false;
+    writeQueue(next);
+    return true;
+  }
+
+  function discardSyncOperations(states = ['conflict', 'permanent']) {
+    const allowed = new Set(states);
+    const queue = readQueue();
+    const next = queue.filter(item => item.userId !== currentUserId || !allowed.has(item.state));
+    writeQueue(next);
+    return queue.length - next.length;
+  }
+
+  function cleanupSyncQueue() {
+    const before = readQueue();
+    const completedCutoff = Date.now() - QUEUE_RETENTION_MS;
+    const next = before.filter(operation => {
+      if (operation.userId !== currentUserId) return true;
+      if (RETRYABLE_STATES.has(operation.state) || operation.state === 'syncing') return true;
+      if (!operation.updatedAt) return false;
+      return Date.parse(operation.updatedAt) >= completedCutoff;
+    }).slice(-MAX_QUEUE_OPERATIONS);
+    writeQueue(next);
+    return before.length - next.length;
   }
 
   async function getAssignment(id) {
@@ -570,8 +620,12 @@
     isAuthenticated,
     getSyncState,
     getSyncConflicts,
+    getSyncReviewOperations,
     getSyncOperations,
     retrySyncOperation,
+    discardSyncOperation,
+    discardSyncOperations,
+    cleanupSyncQueue,
     getAssignment,
     resolveAssignmentConflict,
     flushSyncQueue,
