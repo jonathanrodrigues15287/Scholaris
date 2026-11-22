@@ -639,6 +639,34 @@
 
   async function createAssignment(task) {
     const idempotencyKey = task.operationId || (task.operationId = createId('op'));
+    if (isOffline()) {
+      const courseId = Number(localStorage.getItem('scholaris_default_course_id')) || 1;
+      const body = JSON.stringify({
+        title: task.title,
+        due_date: task.due || null,
+        priority: task.priority || 'medium',
+        priority_mode: task.priorityMode || 'manual',
+        course_id: courseId
+      });
+      const headers = { 'X-Idempotency-Key': idempotencyKey };
+      const operation = enqueueOperation('/assignments', {
+        method: 'POST',
+        headers,
+        body,
+        operation: `Create assignment: ${task.title}`
+      });
+      if (!operation) {
+        const queueError = new Error(`The local change queue is full (${MAX_QUEUE_OPERATIONS} operations). Open Pending Changes and resolve or discard work before saving another change.`);
+        queueError.queueFull = true;
+        queueError.syncState = 'queue-full';
+        throw queueError;
+      }
+      const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
+      queuedError.queued = true;
+      queuedError.operationId = operation.id;
+      queuedError.syncState = 'retryable';
+      throw queuedError;
+    }
     const course = isOffline()
       ? { id: Number(localStorage.getItem('scholaris_default_course_id')) || 1 }
       : await getOrCreateDefaultCourse();

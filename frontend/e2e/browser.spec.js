@@ -59,6 +59,14 @@ test('offline assignment creation is queued and replayed after reconnect', async
   await page.click('#add-assignment-btn');
 
   await expect(page.locator('#assignments-list')).toContainText('Offline browser assignment');
+  await expect.poll(() => page.evaluate(() => ({
+    onLine: navigator.onLine,
+    authenticated: window.ScholarisApi?.isAuthenticated(),
+    queue: JSON.parse(localStorage.getItem('scholaris_sync_queue') || '[]').length
+  })), { timeout: 10_000 }).toMatchObject({
+    onLine: false,
+    authenticated: true
+  });
   await expect.poll(() => page.evaluate(() =>
     JSON.parse(localStorage.getItem('scholaris_sync_queue') || '[]').length
   )).toBeGreaterThan(0);

@@ -111,7 +111,8 @@
   }
 
   async function syncTaskCreate(task) {
-    if (!ScholarisApi?.isAuthenticated()) return;
+    if (!ScholarisApi) return;
+    if (!ScholarisApi.isAuthenticated() && navigator.onLine) return;
     try {
       const remoteTask = await ScholarisApi.createAssignment(task);
       task.id = remoteTask.id;
