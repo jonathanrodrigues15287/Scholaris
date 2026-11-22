@@ -1,12 +1,14 @@
 import hashlib
 import json
-from datetime import timedelta, timezone, datetime
+import asyncio
+import threading
+from datetime import timedelta, datetime, timezone
 
 import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.core.database import SessionLocal
@@ -15,6 +17,7 @@ from app.models.idempotency import IdempotencyRecord
 
 
 IDEMPOTENCY_RETENTION = timedelta(days=30)
+IDEMPOTENCY_LOCK = threading.RLock()
 
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
@@ -53,31 +56,50 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 		).hexdigest()
 
 		db = SessionLocal()
+		IDEMPOTENCY_LOCK.acquire()
 		try:
 			try:
 				db.execute(
 					delete(IdempotencyRecord).where(
 						IdempotencyRecord.user_id == user_id,
-						IdempotencyRecord.created_at < datetime.now(timezone.utc) - IDEMPOTENCY_RETENTION,
+						IdempotencyRecord.created_at
+						< datetime.now(timezone.utc).replace(tzinfo=None) - IDEMPOTENCY_RETENTION,
 					)
 				)
 				db.commit()
 			except OperationalError:
 				db.rollback()
 				return await call_next(request)
-			existing = db.scalar(
-				select(IdempotencyRecord).where(
-					IdempotencyRecord.user_id == user_id,
-					IdempotencyRecord.operation_id == operation_id,
+
+			try:
+				db.execute(
+					insert(IdempotencyRecord).values(
+						user_id=user_id,
+						operation_id=operation_id,
+						request_hash=request_hash,
+						state="pending",
+						response_status=None,
+						response_body=None,
+					)
 				)
-			)
-			if existing is not None:
+				db.commit()
+			except IntegrityError:
+				db.rollback()
+				existing = db.scalar(
+					select(IdempotencyRecord).where(
+						IdempotencyRecord.user_id == user_id,
+						IdempotencyRecord.operation_id == operation_id,
+					)
+				)
+				if existing is None:
+					return JSONResponse(
+						status_code=409,
+						content={
+							"code": "IDEMPOTENCY_CONFLICT",
+							"message": "Idempotency key could not be reserved",
+						},
+					)
 				if existing.request_hash != request_hash:
-					if request.method == "POST" and request.url.path.endswith("/assignments"):
-						response = await call_next(request)
-						if response.status_code not in range(200, 300):
-							return response
-						return response
 					return JSONResponse(
 						status_code=409,
 						content={
@@ -85,15 +107,56 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 							"message": "Idempotency key was already used with a different request",
 						},
 					)
-				if existing.response_status == 204:
-					return Response(status_code=204)
+
+				for _ in range(100):
+					db.expire_all()
+					current = db.scalar(
+						select(IdempotencyRecord).where(
+							IdempotencyRecord.user_id == user_id,
+							IdempotencyRecord.operation_id == operation_id,
+						)
+					)
+					if current is not None and current.state == "completed":
+						if current.request_hash != request_hash:
+							break
+						if current.response_status == 204:
+							return Response(status_code=204)
+						return JSONResponse(
+							status_code=current.response_status or 500,
+							content=current.response_body or {},
+						)
+					await asyncio.sleep(0.05)
+
 				return JSONResponse(
-					status_code=existing.response_status,
-					content=existing.response_body,
+					status_code=425,
+					content={
+						"code": "IDEMPOTENCY_IN_PROGRESS",
+						"message": "The same idempotency operation is still in progress",
+					},
 				)
 
-			response = await call_next(request)
+			try:
+				response = await call_next(request)
+			except Exception:
+				db.execute(
+					delete(IdempotencyRecord)
+					.where(
+						IdempotencyRecord.user_id == user_id,
+						IdempotencyRecord.operation_id == operation_id,
+					)
+				)
+				db.commit()
+				raise
+
 			if response.status_code not in range(200, 300):
+				db.execute(
+					delete(IdempotencyRecord)
+					.where(
+						IdempotencyRecord.user_id == user_id,
+						IdempotencyRecord.operation_id == operation_id,
+					)
+				)
+				db.commit()
 				return response
 
 			response_body = b""
@@ -114,18 +177,19 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 				except (json.JSONDecodeError, UnicodeDecodeError):
 					payload = {}
 
-			record = IdempotencyRecord(
-				user_id=user_id,
-				operation_id=operation_id,
-				request_hash=request_hash,
-				response_status=response.status_code,
-				response_body=payload,
+			db.execute(
+				update(IdempotencyRecord)
+				.where(
+					IdempotencyRecord.user_id == user_id,
+					IdempotencyRecord.operation_id == operation_id,
+				)
+				.values(
+					state="completed",
+					response_status=response.status_code,
+					response_body=payload if response.status_code != 204 else None,
+				)
 			)
-			db.add(record)
-			try:
-				db.commit()
-			except IntegrityError:
-				db.rollback()
+			db.commit()
 
 			if hasattr(response, "body"):
 				return response
@@ -138,3 +202,4 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 			)
 		finally:
 			db.close()
+			IDEMPOTENCY_LOCK.release()

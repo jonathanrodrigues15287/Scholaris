@@ -181,7 +181,7 @@ def create_assignment(
 			IdempotencyRecord.operation_id == operation_id,
 		)
 	)
-	if existing is not None:
+	if existing is not None and existing.response_status is not None:
 		return _replay_idempotent_response(existing, request_hash)
 
 	require_course(db, owner_id, data.course_id)
@@ -194,15 +194,17 @@ def create_assignment(
 	db.refresh(assignment)
 	_record_history(db, assignment, owner_id, "created")
 	response_body = AssignmentRead.model_validate(assignment).model_dump(mode="json")
-	db.add(
-		IdempotencyRecord(
-			user_id=owner_id,
-			operation_id=operation_id,
-			request_hash=request_hash,
-			response_status=201,
-			response_body=response_body,
+	if existing is None:
+		db.add(
+			IdempotencyRecord(
+				user_id=owner_id,
+				operation_id=operation_id,
+				request_hash=request_hash,
+				state="completed",
+				response_status=201,
+				response_body=response_body,
+			)
 		)
-	)
 	try:
 		db.commit()
 	except IntegrityError as exc:

@@ -106,10 +106,13 @@ incremented to `4`. A stale request returns the standard error envelope:
 The conflict response does not include server and client assignment
 representations. Fetch the assignment again before resolving the conflict.
 
-`POST /api/v1/assignments` also requires the `X-Idempotency-Key` header. The
-key is scoped to the authenticated user and is stored with the request
-fingerprint and original response. Other mutation routes do not currently
-persist server-side idempotency records, even if the frontend queues them.
+Mutating requests carrying `X-Idempotency-Key` are replayed idempotently by
+the server. The key is scoped to the authenticated user and stored with the
+request fingerprint, method, path, original status, and original response.
+Reusing a key with the same request returns the original response; reusing it
+with different request data returns `409 IDEMPOTENCY_CONFLICT`. Assignment
+creation additionally validates idempotency in the assignment service.
+Idempotency records are automatically removed after 30 days.
 
 ## Status codes
 

@@ -33,12 +33,19 @@
       const queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
       const cutoff = Date.now() - QUEUE_RETENTION_MS;
       const retained = queue.filter(operation => {
-        if (!operation.createdAt) return true;
-        const created = Date.parse(operation.createdAt);
-        if (!Number.isFinite(created) || created >= cutoff) return true;
+        const timestamp = operation.updatedAt || operation.createdAt;
+        if (!timestamp) return true;
+        const updated = Date.parse(timestamp);
+        if (!Number.isFinite(updated) || updated >= cutoff) return true;
         return RETRYABLE_STATES.has(operation.state) || operation.state === 'syncing';
-      }).slice(-MAX_QUEUE_OPERATIONS);
-      if (retained.length !== queue.length) writeQueue(retained);
+      });
+      if (retained.length !== queue.length) {
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(retained));
+        Scholaris.events?.emit('sync-queue-cleaned', {
+          removed: queue.length - retained.length,
+          reason: 'retention'
+        });
+      }
       return retained;
     } catch (_) { return []; }
   }
@@ -107,6 +114,10 @@
 
   function enqueueOperation(path, options, { state = 'pending', error = null } = {}) {
     const queue = readQueue();
+    const userOperations = queue.filter(operation => operation.userId === currentUserId);
+    if (userOperations.length >= MAX_QUEUE_OPERATIONS) {
+      return null;
+    }
     const idempotencyKey = options.headers?.['X-Idempotency-Key'];
     const operation = {
       id: idempotencyKey || createId('op'),
@@ -142,6 +153,12 @@
 
     if (authenticated && isMutating(options) && !skipQueue && isOffline()) {
       const operation = enqueueOperation(path, { ...options, headers });
+      if (!operation) {
+        const queueError = new Error(`The local change queue is full (${MAX_QUEUE_OPERATIONS} operations). Open Pending Changes and resolve or discard work before saving another change.`);
+        queueError.queueFull = true;
+        queueError.syncState = 'queue-full';
+        throw queueError;
+      }
       const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
       queuedError.queued = true;
       queuedError.operationId = operation.id;
@@ -155,6 +172,12 @@
     } catch (error) {
       if (authenticated && isMutating(options) && !skipQueue && isNetworkFailure(error)) {
         const operation = enqueueOperation(path, { ...options, headers });
+        if (!operation) {
+          const queueError = new Error(`The local change queue is full (${MAX_QUEUE_OPERATIONS} operations). Open Pending Changes and resolve or discard work before saving another change.`);
+          queueError.queueFull = true;
+          queueError.syncState = 'queue-full';
+          throw queueError;
+        }
         const queuedError = new Error(`Saved offline and queued for synchronization (${operation.id}).`);
         queuedError.queued = true;
         queuedError.operationId = operation.id;
@@ -181,6 +204,12 @@
           state,
           error: error.message
         });
+        if (!operation) {
+          const queueError = new Error(`The local change queue is full (${MAX_QUEUE_OPERATIONS} operations). Open Pending Changes and resolve or discard work before saving another change.`);
+          queueError.queueFull = true;
+          queueError.syncState = 'queue-full';
+          throw queueError;
+        }
         error.operationId = operation.id;
         error.syncState = state;
         error.queued = state === 'retryable';
@@ -313,6 +342,8 @@
   }
 
   function cleanupSyncQueue() {
+    let beforeRaw = [];
+    try { beforeRaw = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch (_) {}
     const before = readQueue();
     const completedCutoff = Date.now() - QUEUE_RETENTION_MS;
     const next = before.filter(operation => {
@@ -320,9 +351,42 @@
       if (RETRYABLE_STATES.has(operation.state) || operation.state === 'syncing') return true;
       if (!operation.updatedAt) return false;
       return Date.parse(operation.updatedAt) >= completedCutoff;
-    }).slice(-MAX_QUEUE_OPERATIONS);
+    });
+    const beforeCurrentCount = beforeRaw.filter(operation => operation.userId === currentUserId).length;
+    const afterCurrentCount = next.filter(operation => operation.userId === currentUserId).length;
+    const removed = beforeCurrentCount - afterCurrentCount;
     writeQueue(next);
-    return before.length - next.length;
+    if (removed) {
+      Scholaris.events?.emit('sync-queue-cleaned', {
+        removed,
+        reason: 'retention'
+      });
+    }
+    return removed;
+  }
+
+  function getQueueRetentionInfo() {
+    const operations = readQueue().filter(operation => operation.userId === currentUserId);
+    const failed = operations.filter(operation =>
+      ['conflict', 'permanent'].includes(operation.state)
+    );
+    const expiring = failed.map(operation => {
+      const expiresAt = new Date(
+        Date.parse(operation.updatedAt || operation.createdAt) + QUEUE_RETENTION_MS
+      );
+      return {
+        id: operation.id,
+        expiresAt: expiresAt.toISOString(),
+        daysRemaining: Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86400000))
+      };
+    });
+    return {
+      count: operations.length,
+      max: MAX_QUEUE_OPERATIONS,
+      atLimit: operations.length >= MAX_QUEUE_OPERATIONS,
+      retentionDays: QUEUE_RETENTION_MS / 86400000,
+      expiring
+    };
   }
 
   async function getAssignment(id) {
@@ -639,6 +703,7 @@
     discardSyncOperation,
     discardSyncOperations,
     cleanupSyncQueue,
+    getQueueRetentionInfo,
     getAssignment,
     resolveAssignmentConflict,
     flushSyncQueue,

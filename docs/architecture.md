@@ -25,8 +25,8 @@ FastAPI application (/api/v1)
 
 ## Backend layers
 
-- **Middleware** handles request IDs, CSRF checks, security headers, CORS, and
-  development-only dashboard query metrics.
+- **Middleware** handles request IDs, CSRF checks, security headers, CORS,
+  mutation idempotency, and development-only dashboard query metrics.
 - **Routers** validate HTTP input, resolve the authenticated user, and delegate
   to services.
 - **Services** contain domain operations such as assignment lifecycle rules,
@@ -39,11 +39,16 @@ The application uses synchronous SQLAlchemy sessions. Each dependency-created
 session is closed after the request. Background jobs create their own session
 instead of reusing request state.
 
-The browser queue is not a backend queue: it is a `localStorage` data structure
-owned by the current frontend. It replays authenticated mutations sequentially
-when the browser is online. The backend provides durable idempotency only for
-assignment creation; other queued mutations are at-least-once attempts and
-must be safe for the user to review or retry.
+The browser queue is not a backend queue: it is a user-scoped `localStorage`
+data structure owned by the current frontend. It enqueues mutations immediately
+when offline and replays authenticated mutations sequentially when the browser
+is online. Queue operations are capped at 500 entries and aged after 30 days.
+The Pending Changes screen exposes retry and discard controls.
+
+The backend mutation-idempotency middleware stores successful replayable
+responses for authenticated `POST`, `PUT`, `PATCH`, and `DELETE` requests that
+carry `X-Idempotency-Key`. Assignment creation also has service-level
+idempotency. Assignment edits remain subject to optimistic version checks.
 
 ## Request lifecycle
 
@@ -75,6 +80,16 @@ database query and SMTP delivery
 This keeps local development simple while providing a queue boundary that can
 later be replaced with Redis/RQ, Celery, or another distributed worker system.
 Only one API instance should run the in-process scheduler in production.
+When SMTP is configured, startup reports scheduler and worker state separately
+through `GET /api/v1/health`. Worker or scheduler startup failure is logged and
+the API remains available in degraded mode instead of crashing the application
+process.
+
+Deadline reminder execution uses a distributed lease for the due-date key.
+Redis is preferred when `REDIS_URL` is configured; PostgreSQL uses a session
+advisory lock as a fallback, and local SQLite/test deployments use an in-process
+lease. The lease prevents multiple API workers from sending the same day's
+reminder set twice.
 
 ## Observability
 

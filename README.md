@@ -21,8 +21,8 @@ Screenshots are not currently included in the repository.
 - Dashboard summaries for the student's academic workflow
 - Cookie-authenticated API with CSRF protection and structured errors
 - Offline-first mutation queue in browser `localStorage`
-- Exactly-once replay protection for assignment creation through
-  `X-Idempotency-Key`
+- Server-side replay protection for mutations carrying `X-Idempotency-Key`
+- Retained offline operations with a Pending Changes review screen
 - Version-aware assignment synchronization and conflict resolution
 
 Offline mutations are scoped to the signed-in user and replayed sequentially
@@ -113,10 +113,12 @@ FastAPI application
           └─ APScheduler → email worker → SMTP
 ```
 
-The browser queue is separate from the backend queue. It replays authenticated
-mutations sequentially when the browser is online. Assignment creation has
-durable server-side idempotency records; other queued mutations remain
-at-least-once attempts and should be reviewed when conflicts occur.
+The browser queue is separate from the backend queue. It enqueues mutations
+while offline, replays them sequentially when the browser reconnects, and
+limits the queue to 500 operations with 30-day cleanup for old failed review
+entries. A Pending Changes screen lets users retry or discard
+changes that need attention. Mutations carrying `X-Idempotency-Key` receive
+server-side replay protection.
 
 See the [full architecture documentation](./docs/architecture.md) for request
 lifecycles, background work, and observability.

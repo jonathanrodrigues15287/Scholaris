@@ -4,8 +4,11 @@ const test = require('node:test');
 const vm = require('node:vm');
 const { loadBusiness } = require('./test-utils');
 
-function loadApi(fetch) {
+function loadApi(fetch, { initialStorage = {}, now = null, online = true } = {}) {
   const values = new Map();
+  for (const [key, value] of Object.entries(initialStorage)) {
+    values.set(key, typeof value === 'string' ? value : JSON.stringify(value));
+  }
   let id = 0;
   const window = {
     Scholaris: { utils: { business: loadBusiness() } },
@@ -20,10 +23,15 @@ function loadApi(fetch) {
       removeItem: key => values.delete(key)
     },
     document: { cookie: '', getElementById: () => null },
-    navigator: { onLine: true },
+    navigator: { onLine: online },
     fetch,
     URL,
     URLSearchParams,
+    Date: now
+      ? class extends Date {
+          static now() { return now; }
+        }
+      : Date,
     setInterval() {},
     console
   };
@@ -136,6 +144,9 @@ test('keeps retryable and permanent queue failures distinguishable', async () =>
     const path = new URL(url).pathname.replace('/api/v1', '');
     if (path === '/auth/me') return jsonResponse(401, {});
     if (path === '/auth/login') return jsonResponse(200, { user: { id: 7 } });
+    if (path === '/courses') {
+      return jsonResponse(200, { items: [{ id: 1, name: 'General', code: 'GEN', credits: 0 }] });
+    }
     if (path === '/courses' && (!options.method || options.method === 'GET')) {
       return jsonResponse(200, { items: [{ id: 1, name: 'General', code: 'GEN', credits: 0 }] });
     }
@@ -165,4 +176,75 @@ test('keeps retryable and permanent queue failures distinguishable', async () =>
   assert.equal(operations[0].state, 'permanent');
   assert.equal(api.getSyncState().permanent, 1);
   assert.equal(api.retrySyncOperation(operationId), true);
+});
+
+test('queue limit rejects a 501st local operation instead of silently discarding work', async () => {
+  const queue = Array.from({ length: 500 }, (_, index) => ({
+    id: `op-${index}`,
+    userId: 7,
+    path: '/assignments/42',
+    method: 'PATCH',
+    body: JSON.stringify({ title: `Draft ${index}`, version: 1 }),
+    headers: {},
+    createdAt: '2099-11-01T12:00:00.000Z',
+    updatedAt: '2099-11-01T12:00:00.000Z',
+    attempts: 0,
+    state: 'pending',
+    operation: 'PATCH /assignments/42'
+  }));
+  const api = loadApi(async (url, options) => {
+    const path = new URL(url).pathname.replace('/api/v1', '');
+    if (path === '/auth/me') return jsonResponse(401, {});
+    if (path === '/auth/login') return jsonResponse(200, { user: { id: 7 } });
+    if (path === '/courses') {
+      return jsonResponse(200, { items: [{ id: 1, name: 'General', code: 'GEN', credits: 0 }] });
+    }
+    throw new TypeError('offline');
+  }, { online: false, initialStorage: { scholaris_sync_queue: queue } });
+
+  await new Promise(resolve => setImmediate(resolve));
+  await api.login('student@example.com', 'password');
+  const limit = api.getQueueRetentionInfo();
+  assert.equal(limit.count, 500);
+  assert.equal(limit.atLimit, true);
+
+  const rejected = await api.updateAssignment(42, { title: 'One too many', version: 1 }).catch(error => error);
+  assert.equal(rejected.queueFull, true);
+  assert.equal(api.getQueueRetentionInfo().count, 500);
+});
+
+test('expired failed changes are reported and removed after 30 days', async () => {
+  const now = Date.parse('2026-12-01T12:00:00.000Z');
+  const api = loadApi(async (url) => {
+    const path = new URL(url).pathname.replace('/api/v1', '');
+    if (path === '/auth/me') return jsonResponse(401, {});
+    if (path === '/auth/login') return jsonResponse(200, { user: { id: 7 } });
+    if (path === '/courses') {
+      return jsonResponse(200, { items: [{ id: 1, name: 'General', code: 'GEN', credits: 0 }] });
+    }
+    return jsonResponse(404, {});
+  }, {
+    now,
+    initialStorage: {
+      scholaris_sync_queue: [{
+        id: 'op-old',
+        userId: 7,
+        path: '/assignments/42',
+        method: 'PATCH',
+        body: '{}',
+        headers: {},
+        createdAt: '2026-09-01T12:00:00.000Z',
+        updatedAt: '2026-09-01T12:00:00.000Z',
+        attempts: 1,
+        state: 'permanent',
+        operation: 'PATCH /assignments/42'
+      }]
+    }
+  });
+
+  await new Promise(resolve => setImmediate(resolve));
+  await api.login('student@example.com', 'password');
+  const removed = api.cleanupSyncQueue();
+  assert.equal(removed, 1);
+  assert.equal(api.getQueueRetentionInfo().count, 0);
 });

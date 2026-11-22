@@ -58,6 +58,11 @@ Migration files live in `backend/alembic/versions/`. Schema changes should be
 made through a new migration rather than by editing an already-applied
 migration.
 
+The dedicated migration workflow applies the migration chain to a clean
+PostgreSQL 16 database, verifies the current migration revision, downgrades to
+base, and upgrades to head again. The Playwright browser server uses an isolated
+SQLite `create_all()` fixture and does not replace deployment migration testing.
+
 ## Consistency and concurrency
 
 Database constraints enforce uniqueness and relationship integrity. The API
@@ -69,11 +74,12 @@ version in the update request body. The service rejects stale writes with a
 version; the conflict response does not include server or client state, so the
 client must fetch the assignment again before resolving the conflict.
 
-Assignment creation persists an idempotency key, request fingerprint, response
-status, and response body in `idempotency_records`. Replaying the same
-operation returns the original result; reusing the key with different input is
-rejected. These records have no application-level retention job and are
-deleted when their user is deleted.
+Mutation idempotency persists an idempotency key, user ID, request fingerprint,
+response status, and response body in `idempotency_records`. Replaying the same
+authenticated mutation returns the original result; reusing the key with
+different method, path, or input is rejected. Assignment creation also validates
+the request fingerprint in its service. Middleware cleanup removes expired
+records after 30 days. Remaining records are deleted when their user is deleted.
 
 ## Query instrumentation
 

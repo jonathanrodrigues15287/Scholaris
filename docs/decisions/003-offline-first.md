@@ -11,15 +11,17 @@ the application unreliable in ordinary student environments.
 
 ## Decision
 
-Persist authenticated mutation envelopes in the browser when a network or
-retryable HTTP failure occurs. Retry them when connectivity returns. Assignment
-creation preserves a server idempotency key; other mutations have only a
-client-side queue operation ID and do not yet have server-side exactly-once
-protection.
+Persist authenticated mutation envelopes in the browser while offline or when
+a network or retryable HTTP failure occurs. Retry them when connectivity
+returns. Mutations receive a stable client operation ID and
+`X-Idempotency-Key`; server middleware provides replay protection for successful
+authenticated mutations carrying that key.
 
 The envelope records the request path, method, payload, timestamps, retry
-count, and synchronization state. The API treats assignment creation replays
-idempotently using the operation key and request fingerprint.
+count, and synchronization state. The queue is capped at 500 entries and
+cleans old failed review entries after 30 days. The API stores mutation
+fingerprints and original responses, and assignment creation also has
+service-level idempotency.
 
 ## Conflict strategy
 
@@ -42,11 +44,10 @@ field-level merge. The system does not silently overwrite a newer change.
 
 ## Consequences
 
-- The frontend must show pending and conflict states.
-- Assignment creation must carry a stable server idempotency key; other queued
-  mutations require user-visible failure handling because they are not
-  server-side exactly-once operations.
-- Server-side idempotency persistence must be expanded to every mutation
-  endpoint before claiming exactly-once semantics for the entire API.
+- The frontend exposes pending, retryable, conflict, permanent, and synced
+  states in the Pending Changes review screen.
+- Mutations must carry stable server idempotency keys for replay protection.
+- User-visible failure handling remains necessary for domain conflicts and
+  permanent failures that idempotency cannot resolve.
 - Local browser storage is not a substitute for server durability; successful
   replay is the point at which the server becomes authoritative.

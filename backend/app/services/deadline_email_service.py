@@ -3,10 +3,12 @@ import random
 import smtplib
 import ssl
 import time
+import threading
+import uuid
 from datetime import date, timedelta
 from email.message import EmailMessage
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -18,6 +20,8 @@ logger = logging.getLogger(__name__)
 _MAX_EMAIL_ATTEMPTS = 3
 _INITIAL_EMAIL_RETRY_DELAY_SECONDS = 5
 _MAX_EMAIL_RETRY_DELAY_SECONDS = 60
+_local_reminder_locks: set[str] = set()
+_local_reminder_locks_lock = threading.Lock()
 
 
 def _send_email(recipient: str, subject: str, body: str) -> None:
@@ -75,7 +79,71 @@ def _send_email_with_retries(recipient: str, subject: str, body: str) -> None:
 			time.sleep(delay)
 
 
-def send_deadline_emails(db: Session, today: date | None = None) -> tuple[int, int]:
+def _acquire_reminder_lock(db: Session, due_date: date) -> tuple[bool, object | None]:
+	lock_key = f"scholaris:deadline-reminders:{due_date.isoformat()}"
+	token = str(uuid.uuid4())
+
+	if settings.REDIS_URL:
+		try:
+			import redis
+
+			client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+			acquired = bool(client.set(lock_key, token, nx=True, ex=24 * 60 * 60))
+			if acquired:
+				return True, ("redis", client, lock_key, token)
+			logger.info("Deadline reminder run already claimed by another process", extra={"due_date": due_date.isoformat()})
+			return False, None
+		except Exception:
+			logger.exception("Could not acquire Redis reminder lock; trying database fallback")
+
+	bind = db.get_bind()
+	dialect_name = bind.dialect.name if bind is not None else ""
+	if dialect_name == "postgresql":
+		acquired = bool(db.execute(
+			text("SELECT pg_try_advisory_lock(hashtext(:lock_key))"),
+			{"lock_key": lock_key},
+		).scalar())
+		if acquired:
+			return True, ("postgresql", db, lock_key)
+		logger.info("Deadline reminder run already claimed by another PostgreSQL session", extra={"due_date": due_date.isoformat()})
+		return False, None
+
+	with _local_reminder_locks_lock:
+		if lock_key in _local_reminder_locks:
+			logger.info("Deadline reminder run already claimed in this process", extra={"due_date": due_date.isoformat()})
+			return False, None
+		_local_reminder_locks.add(lock_key)
+	return True, ("local", lock_key)
+
+
+def _release_reminder_lock(lease: object | None) -> None:
+	if not lease:
+		return
+	try:
+		lease_type = lease[0]
+		if lease_type == "redis":
+			_, client, lock_key, token = lease
+			client.eval(
+				"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+				1,
+				lock_key,
+				token,
+			)
+		elif lease_type == "postgresql":
+			_, db, lock_key = lease
+			db.execute(
+				text("SELECT pg_advisory_unlock(hashtext(:lock_key))"),
+				{"lock_key": lock_key},
+			)
+			db.commit()
+		elif lease_type == "local":
+			with _local_reminder_locks_lock:
+				_local_reminder_locks.discard(lease[1])
+	except Exception:
+		logger.exception("Could not release deadline reminder lock")
+
+
+def _send_deadline_emails(db: Session, today: date | None = None) -> tuple[int, int]:
 	"Send one daily email per user for incomplete assignments due tomorrow."
 	due_date = (today or date.today()) + timedelta(days=1)
 	assignments = list(
@@ -129,3 +197,15 @@ def send_deadline_emails(db: Session, today: date | None = None) -> tuple[int, i
 		sent += 1
 
 	return sent, failed
+
+
+def send_deadline_emails(db: Session, today: date | None = None) -> tuple[int, int]:
+	due_date = (today or date.today()) + timedelta(days=1)
+	acquired, lease = _acquire_reminder_lock(db, due_date)
+	if not acquired:
+		logger.info("Skipping duplicate deadline reminder run", extra={"due_date": due_date.isoformat()})
+		return 0, 0
+	try:
+		return _send_deadline_emails(db, today=today)
+	finally:
+		_release_reminder_lock(lease)

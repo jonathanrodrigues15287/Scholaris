@@ -7,6 +7,8 @@
   const refreshButton = document.getElementById('sync-review-refresh');
   const retryAllButton = document.getElementById('sync-review-retry-all');
   const discardButton = document.getElementById('sync-review-discard-failed');
+  const retentionWarning = document.getElementById('sync-retention-warning');
+  const retentionWarningText = document.getElementById('sync-retention-warning-text');
 
   function stateLabel(state) {
     return {
@@ -25,12 +27,17 @@
     const updated = operation.updatedAt
       ? new Date(operation.updatedAt).toLocaleString()
       : 'Unknown';
+    const retention = api.getQueueRetentionInfo();
+    const expiration = retention.expiring.find(item => item.id === operation.id);
+    const expirationText = expiration
+      ? ` · Locally saved work expires in ${expiration.daysRemaining} day${expiration.daysRemaining === 1 ? '' : 's'}`
+      : '';
     return `<li class="sync-review-item sync-review-${escapeHtml(operation.state)}">
       <div>
         <strong>${method} ${path}</strong>
         <span class="sync-review-operation">${escapeHtml(operation.operation || 'Offline change')}</span>
         <span class="text-secondary">${detail}</span>
-        <small class="text-secondary">Updated ${escapeHtml(updated)} · Attempt ${Number(operation.attempts || 0)}</small>
+        <small class="text-secondary">Updated ${escapeHtml(updated)} · Attempt ${Number(operation.attempts || 0)}${escapeHtml(expirationText)}</small>
       </div>
       <div class="sync-review-item-actions">
         <span class="sync-review-state">${escapeHtml(stateLabel(operation.state))}</span>
@@ -50,6 +57,20 @@
     const operations = api.getSyncReviewOperations();
     const failed = operations.filter(operation => ['conflict', 'permanent'].includes(operation.state)).length;
     const pending = operations.filter(operation => ['pending', 'retryable', 'syncing'].includes(operation.state)).length;
+    const retention = api.getQueueRetentionInfo();
+    if (retention.atLimit) {
+      retentionWarningText.textContent =
+        `Queue limit reached: ${retention.count}/${retention.max} operations. Retry or discard work before saving another local change.`;
+    } else if (retention.expiring.length) {
+      const soonest = retention.expiring.reduce((a, b) =>
+        a.daysRemaining < b.daysRemaining ? a : b
+      );
+      retentionWarningText.textContent =
+        `Failed or conflicted changes are kept for ${retention.retentionDays} days. At least one change expires in ${soonest.daysRemaining} day${soonest.daysRemaining === 1 ? '' : 's'}; review or discard it before it is removed. Queue capacity: ${retention.count}/${retention.max}.`;
+    } else {
+      retentionWarningText.textContent =
+        `Failed or conflicted changes are kept for ${retention.retentionDays} days. The queue holds up to ${retention.max} operations; it will not silently discard locally saved work when full. Queue capacity: ${retention.count}/${retention.max}.`;
+    }
     summary.textContent = operations.length
       ? `${pending} pending · ${failed} needs review`
       : 'No pending changes';
@@ -104,5 +125,15 @@
 
   window.Scholaris.events?.on('sync-state-changed', render);
   window.Scholaris.events?.on('auth-changed', render);
+  window.Scholaris.events?.on('sync-queue-cleaned', event => {
+    const detail = event?.detail || event;
+    if (detail?.removed) {
+      Scholaris.utils.toast?.(
+        `${detail.removed} locally saved change${detail.removed === 1 ? '' : 's'} expired and were removed after 30 days.`,
+        'warning'
+      );
+    }
+    render();
+  });
   render();
 })();

@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 from app.core.security import create_access_token, hash_password
@@ -54,6 +55,56 @@ def test_same_idempotency_key_and_payload_replays_original_response(client, db_s
     assert first.status_code == 201
     assert second.status_code == 201
     assert second.json() == first.json()
+
+
+def test_concurrent_same_key_replays_one_mutation(monkeypatch, db_session):
+    from fastapi.testclient import TestClient
+    from sqlalchemy.orm import sessionmaker
+
+    from app.core.database import get_db
+    from app.main import app
+    import app.core.idempotency as idempotency_module
+
+    engine = db_session.get_bind()
+    TestSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(idempotency_module, "SessionLocal", TestSession)
+
+    def override_get_db():
+        session = TestSession()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        user = _create_user(db_session, "concurrent-idempotent")
+        payload = {"name": "Concurrent Course", "code": "CONCUR"}
+        headers = {**_bearer(user), "X-Idempotency-Key": "concurrent-operation"}
+
+        def submit():
+            with TestClient(app) as concurrent_client:
+                return concurrent_client.post(
+                    "/api/v1/courses",
+                    json=payload,
+                    headers=headers,
+                )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(submit), executor.submit(submit)]
+            responses = [future.result(timeout=10) for future in futures]
+
+        assert sorted(response.status_code for response in responses) == [201, 201]
+        assert responses[0].json() == responses[1].json()
+
+        with TestSession() as verify_session:
+            count = verify_session.query(Course).filter(
+                Course.user_id == user.id,
+                Course.code == "CONCUR",
+            ).count()
+        assert count == 1
+    finally:
+        app.dependency_overrides.pop(get_db, None)
 
 
 def test_same_idempotency_key_with_different_payload_returns_conflict(client, db_session):

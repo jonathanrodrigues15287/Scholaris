@@ -2,6 +2,7 @@
   "name": "scholaris",
   "private": true,
   "scripts": {
+    "test:frontend": "node --test frontend/tests/*.test.js",
     "test:browser": "playwright test",
     "test:browser:headed": "playwright test --headed"
   },

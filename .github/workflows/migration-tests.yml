@@ -1,0 +1,79 @@
+name: Migration tests
+
+on:
+  push:
+    paths:
+      - "backend/alembic/**"
+      - "backend/alembic.ini"
+      - "backend/app/models/**"
+      - "backend/requirements.txt"
+      - "backend/scripts/check_clean_database.py"
+      - "backend/scripts/check_migrated_database.py"
+      - ".github/workflows/migration-tests.yml"
+  pull_request:
+    paths:
+      - "backend/alembic/**"
+      - "backend/alembic.ini"
+      - "backend/app/models/**"
+      - "backend/requirements.txt"
+      - "backend/scripts/check_clean_database.py"
+      - "backend/scripts/check_migrated_database.py"
+      - ".github/workflows/migration-tests.yml"
+
+jobs:
+  migrations:
+    name: Clean PostgreSQL migration round-trip
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: scholaris
+          POSTGRES_PASSWORD: scholaris
+          POSTGRES_DB: scholaris_migrations
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scholaris -d scholaris_migrations"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://scholaris:scholaris@localhost:5432/scholaris_migrations
+      PYTHONPATH: backend
+      JWT_SECRET_KEY: ci-migration-secret-key-with-at-least-32-characters
+      APP_ENV: test
+      DEBUG: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Verify database starts clean
+        run: python backend/scripts/check_clean_database.py
+
+      - name: Upgrade clean database to head
+        run: alembic -c backend/alembic.ini upgrade head
+
+      - name: Verify migration head and schema
+        run: |
+          alembic -c backend/alembic.ini current
+          python backend/scripts/check_migrated_database.py
+
+      - name: Downgrade database to base
+        run: alembic -c backend/alembic.ini downgrade base
+
+      - name: Verify database is empty
+        run: python backend/scripts/check_clean_database.py
+
+      - name: Upgrade database to head again
+        run: alembic -c backend/alembic.ini upgrade head

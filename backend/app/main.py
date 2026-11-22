@@ -11,6 +11,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.core.config import settings
 from app.core.exceptions import DomainError
 from app.core.logging import current_request_id
+from app.jobs.deadline_email_scheduler import get_deadline_scheduler_status
 from app.core.middleware import SecurityMiddleware
 from app.core.idempotency import IdempotencyMiddleware
 from app.jobs.deadline_email_scheduler import deadline_email_lifespan
@@ -147,6 +148,11 @@ for router in (
 	app.include_router(router, prefix=API_PREFIX)
 
 
-@app.get(f"{API_PREFIX}/health", tags=["system"], response_model=dict[str, str])
+@app.get(f"{API_PREFIX}/health", tags=["system"], response_model=dict[str, object])
 def health_check():
-	return {"status": "ok"}
+	scheduler = get_deadline_scheduler_status()
+	degraded = scheduler["state"] in {"failed", "degraded"}
+	return {
+		"status": "degraded" if degraded else "ok",
+		"deadline_email": scheduler,
+	}
