@@ -64,6 +64,10 @@ The server first inserts a pending reservation under a unique
 for the winner to complete and receive the replayed response; different
 payloads are rejected immediately. Requests that return an error are not cached
 and abandon the reservation so a later retry can execute.
+If a concurrent insert loses the unique `(user_id, operation_id)` constraint,
+the middleware rolls back that insert, verifies the stored request fingerprint,
+and polls the winning reservation for its completed response. It never runs the
+losing route operation again.
 
 This protects replayed mutations from duplicate execution where the middleware
 can return a cached response. Assignment creation also has its service-level

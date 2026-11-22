@@ -1,8 +1,6 @@
 import hashlib
 import json
 import asyncio
-import threading
-from datetime import timedelta, datetime, timezone
 
 import jwt
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -16,8 +14,16 @@ from app.core.security import decode_access_token
 from app.models.idempotency import IdempotencyRecord
 
 
-IDEMPOTENCY_RETENTION = timedelta(days=30)
-IDEMPOTENCY_LOCK = threading.RLock()
+def _is_idempotency_unique_violation(error: IntegrityError) -> bool:
+	original = error.orig
+	constraint_name = getattr(getattr(original, "diag", None), "constraint_name", None)
+	if constraint_name == "uq_idempotency_user_operation":
+		return True
+	message = str(original).lower()
+	return (
+		"uq_idempotency_user_operation" in message
+		or "unique constraint failed: idempotency_records.user_id, idempotency_records.operation_id" in message
+	)
 
 
 class IdempotencyMiddleware(BaseHTTPMiddleware):
@@ -56,21 +62,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 		).hexdigest()
 
 		db = SessionLocal()
-		IDEMPOTENCY_LOCK.acquire()
 		try:
-			try:
-				db.execute(
-					delete(IdempotencyRecord).where(
-						IdempotencyRecord.user_id == user_id,
-						IdempotencyRecord.created_at
-						< datetime.now(timezone.utc).replace(tzinfo=None) - IDEMPOTENCY_RETENTION,
-					)
-				)
-				db.commit()
-			except OperationalError:
-				db.rollback()
-				return await call_next(request)
-
 			try:
 				db.execute(
 					insert(IdempotencyRecord).values(
@@ -83,8 +75,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 					)
 				)
 				db.commit()
-			except IntegrityError:
+			except OperationalError:
 				db.rollback()
+				return await call_next(request)
+			except IntegrityError as reservation_error:
+				db.rollback()
+				if not _is_idempotency_unique_violation(reservation_error):
+					raise
 				existing = db.scalar(
 					select(IdempotencyRecord).where(
 						IdempotencyRecord.user_id == user_id,
@@ -92,11 +89,19 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 					)
 				)
 				if existing is None:
+					await asyncio.sleep(0.05)
+					existing = db.scalar(
+						select(IdempotencyRecord).where(
+							IdempotencyRecord.user_id == user_id,
+							IdempotencyRecord.operation_id == operation_id,
+						)
+					)
+				if existing is None:
 					return JSONResponse(
-						status_code=409,
+						status_code=425,
 						content={
-							"code": "IDEMPOTENCY_CONFLICT",
-							"message": "Idempotency key could not be reserved",
+							"code": "IDEMPOTENCY_IN_PROGRESS",
+							"message": "The idempotency reservation was released before completion",
 						},
 					)
 				if existing.request_hash != request_hash:
@@ -202,4 +207,3 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 			)
 		finally:
 			db.close()
-			IDEMPOTENCY_LOCK.release()
